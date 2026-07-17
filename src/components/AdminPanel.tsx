@@ -45,6 +45,8 @@ interface AdminPanelProps {
   approveDeposit: (depositId: string) => { success: boolean; error?: string };
   rejectDeposit: (depositId: string, reason: string) => { success: boolean; error?: string };
   logout: () => void;
+  adminViewMode?: 'admin' | 'user';
+  setAdminViewMode?: (mode: 'admin' | 'user') => void;
 }
 
 export default function AdminPanel({
@@ -62,7 +64,9 @@ export default function AdminPanel({
   rejectWithdrawal,
   approveDeposit,
   rejectDeposit,
-  logout
+  logout,
+  adminViewMode,
+  setAdminViewMode
 }: AdminPanelProps) {
   
   // Navigation tabs
@@ -93,6 +97,25 @@ export default function AdminPanel({
   const [inviteExpiresAt, setInviteExpiresAt] = useState<string>('');
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
+  const [lastGeneratedCode, setLastGeneratedCode] = useState<string | null>(null);
+
+  const handleGenerateAutoCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let randomStr = '';
+    for (let i = 0; i < 6; i++) {
+      randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const generated = `AURA-${randomStr}`;
+    const res = createUserInvitation(generated, -1, null);
+    if (res.success) {
+      setLastGeneratedCode(generated);
+      setInviteSuccess(`¡Código Único "${generated}" autogenerado y activado con éxito!`);
+      setInviteError(null);
+    } else {
+      setInviteError(res.error || "No se pudo autogenerar el código.");
+      setInviteSuccess(null);
+    }
+  };
 
   // Announcements form states
   const [annTitle, setAnnTitle] = useState<string>('');
@@ -252,6 +275,32 @@ export default function AdminPanel({
           </div>
 
           <div className="flex items-center gap-4">
+            {/* View switching links/buttons for admin */}
+            <div className="flex items-center bg-zinc-900/90 border border-zinc-800 rounded-lg p-0.5 select-none shrink-0">
+              <button
+                onClick={() => setAdminViewMode && setAdminViewMode('admin')}
+                className={`px-3 py-1.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                  adminViewMode === 'admin'
+                    ? 'bg-red-600 text-white shadow-md shadow-red-950/40'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <ShieldAlert className="w-3.5 h-3.5" />
+                Panel Admin
+              </button>
+              <button
+                onClick={() => setAdminViewMode && setAdminViewMode('user')}
+                className={`px-3 py-1.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                  adminViewMode === 'user'
+                    ? 'bg-red-600 text-white shadow-md shadow-red-950/40'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <UserIcon className="w-3.5 h-3.5" />
+                Vista Usuario
+              </button>
+            </div>
+
             <div className="hidden md:block text-right">
               <div className="text-xs font-bold text-red-400">Sesión Administrativa</div>
               <div className="text-[10px] text-zinc-500">{currentUser.name}</div>
@@ -662,14 +711,63 @@ export default function AdminPanel({
           {adminTab === 'invitations' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
-              {/* Creator form */}
-              <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-5 space-y-4">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Crear Código de Invitación</h3>
+              {/* Creator forms */}
+              <div className="space-y-6">
                 
-                {inviteError && <div className="p-2.5 bg-red-950/40 border border-red-500/20 text-red-200 text-xs rounded-lg">{inviteError}</div>}
-                {inviteSuccess && <div className="p-2.5 bg-zinc-900/80 border border-red-500/30 text-zinc-200 text-xs rounded-lg">{inviteSuccess}</div>}
+                {/* QUICK GENERATOR PANEL */}
+                <div className="bg-zinc-950/60 border border-zinc-805 rounded-xl p-5 space-y-4 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                    <KeyRound className="w-16 h-16 text-red-500" />
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-lg">
+                      <KeyRound className="w-4 h-4" />
+                    </span>
+                    <div>
+                      <h3 className="text-xs font-black uppercase tracking-wider text-zinc-200">Generación Rápida</h3>
+                      <p className="text-[10px] text-zinc-550">Genera un código único al instante en un solo clic</p>
+                    </div>
+                  </div>
 
-                <form onSubmit={handleCreateInviteSubmit} className="space-y-4">
+                  <button
+                    onClick={handleGenerateAutoCode}
+                    className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-lg cursor-pointer transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(239,68,68,0.25)] hover:shadow-[0_0_20px_rgba(239,68,68,0.4)] active:scale-95"
+                  >
+                    <span>⚡ Generar Código Único</span>
+                  </button>
+
+                  {lastGeneratedCode && (
+                    <div className="bg-zinc-900/60 border border-zinc-850 p-3 rounded-lg space-y-2 animate-fadeIn">
+                      <div className="text-[9px] uppercase tracking-wider font-extrabold text-zinc-500">Último Código Autogenerado:</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-black text-sm text-red-400 bg-red-950/25 px-2.5 py-1 rounded border border-red-500/10 select-all flex-1 text-center">
+                          {lastGeneratedCode}
+                        </span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(lastGeneratedCode);
+                          }}
+                          className="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-[10px] rounded transition-all cursor-pointer"
+                        >
+                          Copiar
+                        </button>
+                      </div>
+                      <p className="text-[9px] text-zinc-500 leading-relaxed text-center">
+                        Este código es de uso ilimitado y ya está activo para nuevos registros.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Creator form */}
+                <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-5 space-y-4">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Crear Código de Invitación</h3>
+                  
+                  {inviteError && <div className="p-2.5 bg-red-950/40 border border-red-500/20 text-red-200 text-xs rounded-lg">{inviteError}</div>}
+                  {inviteSuccess && <div className="p-2.5 bg-zinc-900/80 border border-red-500/30 text-zinc-200 text-xs rounded-lg">{inviteSuccess}</div>}
+  
+                  <form onSubmit={handleCreateInviteSubmit} className="space-y-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] uppercase font-bold text-zinc-500 block">Código Único</label>
                     <input
@@ -714,6 +812,7 @@ export default function AdminPanel({
                     Generar Código
                   </button>
                 </form>
+              </div>
               </div>
 
               {/* Active invitations list */}

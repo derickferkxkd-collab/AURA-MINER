@@ -16,6 +16,8 @@ import {
   Pause, 
   Bell, 
   ShieldCheck, 
+  ShieldAlert,
+  User,
   RefreshCw, 
   Zap, 
   FileText, 
@@ -24,10 +26,10 @@ import {
   ArrowUpRight,
   Users
 } from 'lucide-react';
-import { DatabaseState, User, MiningRig, Movement, ActivityLog } from '../utils/db';
+import { DatabaseState, User as DBUser, MiningRig, Movement, ActivityLog } from '../utils/db';
 
 interface UserDashboardProps {
-  currentUser: User;
+  currentUser: DBUser;
   db: DatabaseState;
   purchaseRig: (rigName: string, hashrate: number, cost: number, watts: number) => { success: boolean; error?: string };
   toggleRigStatus: (rigId: string) => { success: boolean; error?: string };
@@ -37,6 +39,8 @@ interface UserDashboardProps {
   requestWithdrawal: (asset: 'USDT' | 'BTC', amount: number, network: string, targetAddress: string) => { success: boolean; error?: string };
   readNotification: (notifId: string) => void;
   logout: () => void;
+  adminViewMode?: 'admin' | 'user';
+  setAdminViewMode?: (mode: 'admin' | 'user') => void;
 }
 
 // Preset ASICs for Sale
@@ -57,7 +61,9 @@ export default function UserDashboard({
   transferBalance,
   requestWithdrawal,
   readNotification,
-  logout
+  logout,
+  adminViewMode,
+  setAdminViewMode
 }: UserDashboardProps) {
   
   // Tab/Screen states
@@ -289,6 +295,34 @@ export default function UserDashboard({
           </div>
 
           <div className="flex items-center gap-4">
+            {/* View switching links/buttons for admin */}
+            {currentUser.role === 'admin' && (
+              <div className="flex items-center bg-zinc-900/90 border border-zinc-800 rounded-lg p-0.5 select-none shrink-0">
+                <button
+                  onClick={() => setAdminViewMode && setAdminViewMode('admin')}
+                  className={`px-3 py-1.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                    adminViewMode === 'admin'
+                      ? 'bg-red-600 text-white shadow-md shadow-red-950/40'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  Panel Admin
+                </button>
+                <button
+                  onClick={() => setAdminViewMode && setAdminViewMode('user')}
+                  className={`px-3 py-1.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                    adminViewMode === 'user'
+                      ? 'bg-red-600 text-white shadow-md shadow-red-950/40'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" />
+                  Vista Usuario
+                </button>
+              </div>
+            )}
+
             {/* Real-time Indicator ticker */}
             <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-900/40 border border-zinc-800 text-[11px] text-zinc-400">
               <TrendingUp className="w-3.5 h-3.5 text-red-500 animate-pulse" />

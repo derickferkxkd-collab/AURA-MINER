@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useState } from 'react';
 import { useMining } from './utils/useMining';
 import AuthScreen from './components/AuthScreen';
 import UserDashboard from './components/UserDashboard';
@@ -40,6 +41,8 @@ export default function App() {
     forceReset
   } = useMining();
 
+  const [adminViewMode, setAdminViewMode] = useState<'admin' | 'user'>('admin');
+
   return (
     <div className="relative min-h-screen bg-[#07070a]">
       {/* Absolute Security Warning Banner for simulated rate limiting */}
@@ -61,23 +64,42 @@ export default function App() {
           forceReset={forceReset}
         />
       ) : currentUser.role === 'admin' ? (
-        <AdminPanel 
-          currentUser={currentUser}
-          db={db}
-          createUserInvitation={createUserInvitation}
-          toggleInvitationStatus={toggleInvitationStatus}
-          approveUser={approveUser}
-          blockUser={blockUser}
-          deleteUser={deleteUser}
-          modifyUserBalance={modifyUserBalance}
-          publishAnnouncement={publishAnnouncement}
-          updateDepositAddresses={updateDepositAddresses}
-          approveWithdrawal={approveWithdrawal}
-          rejectWithdrawal={rejectWithdrawal}
-          approveDeposit={approveDeposit}
-          rejectDeposit={rejectDeposit}
-          logout={logout}
-        />
+        adminViewMode === 'admin' ? (
+          <AdminPanel 
+            currentUser={currentUser}
+            db={db}
+            createUserInvitation={createUserInvitation}
+            toggleInvitationStatus={toggleInvitationStatus}
+            approveUser={approveUser}
+            blockUser={blockUser}
+            deleteUser={deleteUser}
+            modifyUserBalance={modifyUserBalance}
+            publishAnnouncement={publishAnnouncement}
+            updateDepositAddresses={updateDepositAddresses}
+            approveWithdrawal={approveWithdrawal}
+            rejectWithdrawal={rejectWithdrawal}
+            approveDeposit={approveDeposit}
+            rejectDeposit={rejectDeposit}
+            logout={logout}
+            adminViewMode={adminViewMode}
+            setAdminViewMode={setAdminViewMode}
+          />
+        ) : (
+          <UserDashboard 
+            currentUser={currentUser}
+            db={db}
+            purchaseRig={purchaseRig}
+            toggleRigStatus={toggleRigStatus}
+            convertBtcToUsdt={convertBtcToUsdt}
+            createCryptoDeposit={createCryptoDeposit}
+            transferBalance={transferBalance}
+            requestWithdrawal={requestWithdrawal}
+            readNotification={readNotification}
+            logout={logout}
+            adminViewMode={adminViewMode}
+            setAdminViewMode={setAdminViewMode}
+          />
+        )
       ) : (
         <UserDashboard 
           currentUser={currentUser}
