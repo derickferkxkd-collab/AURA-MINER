@@ -23,7 +23,9 @@ import {
   AlertTriangle,
   Mail,
   User as UserIcon,
-  Bell
+  Bell,
+  ArrowUpRight,
+  ArrowDownLeft
 } from 'lucide-react';
 import { DatabaseState, User, Invitation, Movement, AuditLog, UserStatus } from '../utils/db';
 
@@ -38,6 +40,10 @@ interface AdminPanelProps {
   modifyUserBalance: (userId: string, usdtAmount: number, btcAmount: number, reason: string) => { success: boolean; error?: string };
   publishAnnouncement: (title: string, content: string) => { success: boolean; error?: string };
   updateDepositAddresses: (addresses: { USDT_TRC20: string; USDT_ERC20: string; BTC: string; ETH: string; TRX: string }) => { success: boolean; error?: string };
+  approveWithdrawal: (withdrawalId: string, txId: string) => { success: boolean; error?: string };
+  rejectWithdrawal: (withdrawalId: string, reason: string) => { success: boolean; error?: string };
+  approveDeposit: (depositId: string) => { success: boolean; error?: string };
+  rejectDeposit: (depositId: string, reason: string) => { success: boolean; error?: string };
   logout: () => void;
 }
 
@@ -52,11 +58,15 @@ export default function AdminPanel({
   modifyUserBalance,
   publishAnnouncement,
   updateDepositAddresses,
+  approveWithdrawal,
+  rejectWithdrawal,
+  approveDeposit,
+  rejectDeposit,
   logout
 }: AdminPanelProps) {
   
   // Navigation tabs
-  const [adminTab, setAdminTab] = useState<'metrics' | 'users' | 'invitations' | 'comms' | 'audits' | 'wallets'>('metrics');
+  const [adminTab, setAdminTab] = useState<'metrics' | 'users' | 'invitations' | 'comms' | 'audits' | 'wallets' | 'withdrawals' | 'deposits'>('metrics');
 
   // Wallet edit form states
   const [walletUsdtTrc20, setWalletUsdtTrc20] = useState<string>(db.config.depositAddresses?.USDT_TRC20 || '');
@@ -95,11 +105,22 @@ export default function AdminPanel({
   const [notifTitle, setNotifTitle] = useState<string>('');
   const [notifMessage, setNotifMessage] = useState<string>('');
 
+  // Withdrawals administrative control states
+  const [withdrawTxIds, setWithdrawTxIds] = useState<Record<string, string>>({});
+  const [withdrawRejectReasons, setWithdrawRejectReasons] = useState<Record<string, string>>({});
+  const [withdrawStatusMessage, setWithdrawStatusMessage] = useState<{ id: string; success: boolean; text: string } | null>(null);
+
+  // Deposits administrative control states
+  const [depositRejectReasons, setDepositRejectReasons] = useState<Record<string, string>>({});
+  const [depositStatusMessage, setDepositStatusMessage] = useState<{ id: string; success: boolean; text: string } | null>(null);
+
   // General counts & calculations
   const totalUsers = db.users.length;
   const activeUsersCount = db.users.filter(u => u.status === 'active').length;
   const pendingUsersCount = db.users.filter(u => u.status === 'pending_approval').length;
   const blockedUsersCount = db.users.filter(u => u.status === 'blocked').length;
+  const pendingWithdrawalsCount = db.movements.filter(m => m.type === 'withdrawal' && m.status === 'pending').length;
+  const pendingDepositsCount = db.movements.filter(m => m.type === 'deposit' && m.status === 'pending').length;
 
   const totalUSDTReserves = db.users.reduce((acc, curr) => acc + curr.balance, 0);
   const totalBTCReserves = db.users.reduce((acc, curr) => acc + curr.btcBalance, 0);
@@ -323,6 +344,46 @@ export default function AdminPanel({
           >
             <Coins className="w-4 h-4 text-red-500 animate-pulse" />
             Direcciones de Depósito <span className="text-[9px] bg-red-600 text-white font-black px-1.5 py-0.2 rounded shrink-0 uppercase tracking-widest ml-1">WALLETS</span>
+          </button>
+          <button
+            onClick={() => setAdminTab('withdrawals')}
+            className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+              adminTab === 'withdrawals' 
+                ? 'border-red-500 text-red-500 bg-red-950/5' 
+                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <ArrowUpRight className="w-4 h-4 text-red-500" />
+            Control de Retiros
+            {pendingWithdrawalsCount > 0 ? (
+              <span className="text-[9px] bg-yellow-550 text-yellow-950 font-black px-1.5 py-0.2 rounded shrink-0 uppercase tracking-widest ml-1 animate-pulse">
+                {pendingWithdrawalsCount} PENDIENTES
+              </span>
+            ) : (
+              <span className="text-[9px] bg-zinc-800 text-zinc-400 font-black px-1.5 py-0.2 rounded shrink-0 uppercase tracking-widest ml-1">
+                RETIROS
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setAdminTab('deposits')}
+            className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+              adminTab === 'deposits' 
+                ? 'border-red-500 text-red-500 bg-red-950/5' 
+                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <ArrowDownLeft className="w-4 h-4 text-emerald-500" />
+            Control de Depósitos
+            {pendingDepositsCount > 0 ? (
+              <span className="text-[9px] bg-yellow-550 text-yellow-950 font-black px-1.5 py-0.2 rounded shrink-0 uppercase tracking-widest ml-1 animate-pulse">
+                {pendingDepositsCount} PENDIENTES
+              </span>
+            ) : (
+              <span className="text-[9px] bg-zinc-800 text-zinc-400 font-black px-1.5 py-0.2 rounded shrink-0 uppercase tracking-widest ml-1">
+                DEPÓSITOS
+              </span>
+            )}
           </button>
         </div>
 
@@ -959,6 +1020,486 @@ export default function AdminPanel({
                   </div>
                 </form>
               </div>
+            </div>
+          )}
+
+          {/* TAB 7: withdrawals approval list */}
+          {adminTab === 'withdrawals' && (
+            <div className="space-y-6 animate-fadeIn">
+              
+              {/* Header */}
+              <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-6 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-6 opacity-5">
+                  <ArrowUpRight className="w-24 h-24 text-red-500" />
+                </div>
+                
+                <h3 className="text-base font-extrabold text-zinc-200 mb-1 flex items-center gap-2">
+                  <ArrowUpRight className="w-5 h-5 text-red-500" />
+                  Módulo de Auditoría y Aprobación de Retiros
+                </h3>
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  Todos los retiros externos solicitados por los usuarios quedan en estado de espera ("pendiente") por motivos de seguridad. Como administrador, debes auditar la cuenta, realizar la transferencia real a la dirección blockchain correspondiente, y registrar el ID de transacción (TxID) de la red para liberar el retiro. Si sospechas de fraude o detectas un formato inválido, puedes rechazar la solicitud para reintegrar los fondos inmediatamente al balance del usuario.
+                </p>
+              </div>
+
+              {/* Pending Section */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                  Solicitudes de Retiro Pendientes ({db.movements.filter(m => m.type === 'withdrawal' && m.status === 'pending' && m.targetAddress).length})
+                </h4>
+
+                {db.movements.filter(m => m.type === 'withdrawal' && m.status === 'pending' && m.targetAddress).length === 0 ? (
+                  <div className="text-center py-12 text-xs text-zinc-500 bg-zinc-950/45 border border-dashed border-zinc-900 rounded-xl">
+                    No hay solicitudes de retiro externo pendientes de aprobación en este momento.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4">
+                    {db.movements
+                      .filter(m => m.type === 'withdrawal' && m.status === 'pending' && m.targetAddress)
+                      .map((mov) => {
+                        const user = db.users.find(u => u.id === mov.userId);
+                        return (
+                          <div key={mov.id} className="bg-zinc-950/60 border border-zinc-900 rounded-xl p-5 hover:border-yellow-500/20 transition-all flex flex-col md:flex-row justify-between gap-6">
+                            
+                            {/* User & Request Details */}
+                            <div className="space-y-3.5 flex-1">
+                              <div className="flex flex-wrap items-center gap-2.5">
+                                <span className="text-sm font-extrabold text-zinc-200">{mov.userName}</span>
+                                <span className="text-[10px] text-zinc-500 font-mono">({user?.email || "Email no disponible"})</span>
+                                <span className={`px-1.5 py-0.2 rounded text-[9px] font-black tracking-widest uppercase ${
+                                  user?.status === 'active' ? 'bg-green-950/30 text-green-400 border border-green-500/10' : 'bg-red-950/30 text-red-400 border border-red-500/10'
+                                }`}>
+                                  Usuario {user?.status === 'active' ? 'ACTIVO' : 'BLOQUEADO/PENDIENTE'}
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                <div className="space-y-1 bg-zinc-900/40 p-3 rounded-lg border border-zinc-850">
+                                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold block">Detalle de Solicitud</span>
+                                  <div className="text-zinc-300 font-mono font-bold">Monto: {Math.abs(mov.amount)} {mov.asset}</div>
+                                  <div className="text-[11px] text-zinc-400 mt-1">{mov.description}</div>
+                                  <div className="text-[10px] text-zinc-650 font-mono mt-1">ID: {mov.id}</div>
+                                </div>
+
+                                <div className="space-y-1 bg-zinc-900/40 p-3 rounded-lg border border-zinc-850">
+                                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold block">Destinatario Blockchain</span>
+                                  <div className="text-zinc-300 font-mono font-bold break-all select-all">Dirección: {mov.targetAddress}</div>
+                                  <div className="text-[10px] text-zinc-550 mt-1">Saldos de Cuenta Actuales:</div>
+                                  <div className="text-[11px] text-zinc-400 font-mono font-bold">
+                                    USDT: ${user?.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })} | BTC: {user?.btcBalance.toFixed(6)}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="text-[10px] text-zinc-650 font-mono">
+                                Solicitado el: {new Date(mov.timestamp).toLocaleString()}
+                              </div>
+                            </div>
+
+                            {/* Actions Form */}
+                            <div className="w-full md:w-80 space-y-4 border-t md:border-t-0 md:border-l border-zinc-900 pt-4 md:pt-0 md:pl-6 flex flex-col justify-center">
+                              {withdrawStatusMessage?.id === mov.id && (
+                                <div className={`p-2.5 rounded text-xs leading-relaxed ${
+                                  withdrawStatusMessage.success 
+                                    ? 'bg-green-950/20 border border-green-500/20 text-green-400' 
+                                    : 'bg-red-950/20 border border-red-500/20 text-red-400'
+                                }`}>
+                                  {withdrawStatusMessage.text}
+                                </div>
+                              )}
+
+                              {/* Approval Box */}
+                              <div className="space-y-1.5">
+                                <label className="block text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Aprobar con TxID</label>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Ingrese TxID de la blockchain"
+                                    value={withdrawTxIds[mov.id] || ''}
+                                    onChange={(e) => setWithdrawTxIds(prev => ({ ...prev, [mov.id]: e.target.value }))}
+                                    className="flex-1 bg-zinc-900 border border-zinc-850 rounded text-xs p-2 text-zinc-100 font-mono focus:outline-none focus:border-red-500/45 placeholder-zinc-700"
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      const txId = withdrawTxIds[mov.id] || '';
+                                      if (!txId.trim()) {
+                                        setWithdrawStatusMessage({ id: mov.id, success: false, text: "Por favor ingrese el TxID." });
+                                        return;
+                                      }
+                                      const res = approveWithdrawal(mov.id, txId);
+                                      if (res.success) {
+                                        setWithdrawStatusMessage({ id: mov.id, success: true, text: "Retiro aprobado correctamente." });
+                                        setWithdrawTxIds(prev => {
+                                          const next = { ...prev };
+                                          delete next[mov.id];
+                                          return next;
+                                        });
+                                      } else {
+                                        setWithdrawStatusMessage({ id: mov.id, success: false, text: res.error || "Error al aprobar." });
+                                      }
+                                    }}
+                                    className="px-3 bg-green-600 hover:bg-green-700 text-white font-bold text-xs rounded transition-colors cursor-pointer whitespace-nowrap"
+                                  >
+                                    Aprobar
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Rejection Box */}
+                              <div className="space-y-1.5">
+                                <label className="block text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Rechazar con Razón</label>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Razón de rechazo"
+                                    value={withdrawRejectReasons[mov.id] || ''}
+                                    onChange={(e) => setWithdrawRejectReasons(prev => ({ ...prev, [mov.id]: e.target.value }))}
+                                    className="flex-1 bg-zinc-900 border border-zinc-850 rounded text-xs p-2 text-zinc-100 focus:outline-none focus:border-red-500/45 placeholder-zinc-700"
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      const reason = withdrawRejectReasons[mov.id] || '';
+                                      if (!reason.trim()) {
+                                        setWithdrawStatusMessage({ id: mov.id, success: false, text: "Ingrese un motivo de rechazo." });
+                                        return;
+                                      }
+                                      const res = rejectWithdrawal(mov.id, reason);
+                                      if (res.success) {
+                                        setWithdrawStatusMessage({ id: mov.id, success: true, text: "Retiro rechazado. Fondos devueltos." });
+                                        setWithdrawRejectReasons(prev => {
+                                          const next = { ...prev };
+                                          delete next[mov.id];
+                                          return next;
+                                        });
+                                      } else {
+                                        setWithdrawStatusMessage({ id: mov.id, success: false, text: res.error || "Error al rechazar." });
+                                      }
+                                    }}
+                                    className="px-3 bg-red-900 hover:bg-red-950 hover:text-red-300 hover:border-red-500/20 border border-transparent text-zinc-300 font-bold text-xs rounded transition-all cursor-pointer whitespace-nowrap"
+                                  >
+                                    Rechazar
+                                  </button>
+                                </div>
+                              </div>
+
+                            </div>
+
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+
+              {/* Audit History section */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+                  Historial Reciente de Retiros Procesados
+                </h4>
+
+                {db.movements.filter(m => m.type === 'withdrawal' && m.status !== 'pending' && m.targetAddress).length === 0 ? (
+                  <div className="text-center py-8 text-xs text-zinc-550 bg-zinc-950/30 border border-zinc-900 rounded-xl">
+                    No hay retiros externos auditados o procesados previamente.
+                  </div>
+                ) : (
+                  <div className="bg-zinc-950/50 border border-zinc-900 rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="bg-zinc-900/40 text-zinc-550 border-b border-zinc-900 text-[10px] uppercase tracking-wider">
+                            <th className="p-4 font-bold">Fecha / ID</th>
+                            <th className="p-4 font-bold">Usuario</th>
+                            <th className="p-4 font-bold">Detalles / Destino</th>
+                            <th className="p-4 font-bold text-center">Estado</th>
+                            <th className="p-4 font-bold text-right">Monto</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-900/60 text-zinc-450">
+                          {db.movements
+                            .filter(m => m.type === 'withdrawal' && m.status !== 'pending' && m.targetAddress)
+                            .map((mov) => {
+                              return (
+                                <tr key={mov.id} className="hover:bg-zinc-900/10 transition-colors">
+                                  <td className="p-4 whitespace-nowrap">
+                                    <div className="font-bold text-zinc-300">
+                                      {new Date(mov.timestamp).toLocaleDateString()} {new Date(mov.timestamp).toLocaleTimeString()}
+                                    </div>
+                                    <div className="text-[9px] text-zinc-600 font-mono mt-0.5">{mov.id}</div>
+                                  </td>
+                                  <td className="p-4">
+                                    <div className="font-bold text-zinc-300">{mov.userName}</div>
+                                    <div className="text-[9px] text-zinc-550 font-mono font-bold">UID: {mov.userId}</div>
+                                  </td>
+                                  <td className="p-4">
+                                    <div className="text-xs text-zinc-400 break-all max-w-sm">
+                                      {mov.description}
+                                    </div>
+                                    <div className="text-[10px] text-zinc-500 mt-1 break-all select-all font-mono">
+                                      Wallet: {mov.targetAddress}
+                                    </div>
+                                    {mov.txId && (
+                                      <div className="text-[10px] font-mono mt-1 text-zinc-500">
+                                        <span className="text-green-500">TxID:</span> <span className="bg-zinc-900/80 border border-zinc-850 px-1 py-0.5 rounded select-all text-[9px] font-bold">{mov.txId}</span>
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="p-4 text-center whitespace-nowrap">
+                                    {mov.status === 'completed' && (
+                                      <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest bg-green-950/40 text-green-400 border border-green-500/10 rounded">
+                                        APROBADO
+                                      </span>
+                                    )}
+                                    {mov.status === 'failed' && (
+                                      <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest bg-red-950/40 text-red-400 border border-red-500/10 rounded">
+                                        RECHAZADO
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-4 font-mono font-extrabold text-right text-red-400 whitespace-nowrap">
+                                    -${Math.abs(mov.amount).toLocaleString(undefined, { 
+                                      minimumFractionDigits: mov.asset === 'BTC' ? 6 : 2, 
+                                      maximumFractionDigits: mov.asset === 'BTC' ? 8 : 2 
+                                    })} {mov.asset}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB 8: deposits approval list */}
+          {adminTab === 'deposits' && (
+            <div className="space-y-6 animate-fadeIn">
+              
+              {/* Header */}
+              <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-6 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-6 opacity-5">
+                  <ArrowDownLeft className="w-24 h-24 text-emerald-500" />
+                </div>
+                
+                <h3 className="text-base font-extrabold text-zinc-200 mb-1 flex items-center gap-2">
+                  <ArrowDownLeft className="w-5 h-5 text-emerald-500" />
+                  Módulo de Aprobación de Depósitos y Comisión por Referidos
+                </h3>
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  De acuerdo con las reglas de seguridad vigentes, todos los depósitos externos de los usuarios requieren de tu verificación y aprobación explícita como Administrador. Cuando apruebes un depósito, el sistema acreditará automáticamente el saldo en USDT (o BTC si es un depósito directo de Bitcoin) al usuario. Además, si el usuario fue patrocinado por un referido, se otorgará y acreditará de inmediato una comisión del 7% en USDT al patrocinador correspondiente.
+                </p>
+              </div>
+
+              {/* Pending Section */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                  Solicitudes de Depósito Pendientes ({db.movements.filter(m => m.type === 'deposit' && m.status === 'pending').length})
+                </h4>
+
+                {db.movements.filter(m => m.type === 'deposit' && m.status === 'pending').length === 0 ? (
+                  <div className="text-center py-12 text-xs text-zinc-500 bg-zinc-950/45 border border-dashed border-zinc-900 rounded-xl">
+                    No hay depósitos pendientes de aprobación en este momento.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4">
+                    {db.movements
+                      .filter(m => m.type === 'deposit' && m.status === 'pending')
+                      .map((mov) => {
+                        const user = db.users.find(u => u.id === mov.userId);
+                        return (
+                          <div key={mov.id} className="bg-zinc-950/60 border border-zinc-900 rounded-xl p-5 hover:border-emerald-500/20 transition-all flex flex-col md:flex-row justify-between gap-6">
+                            
+                            {/* User & Request Details */}
+                            <div className="space-y-3.5 flex-1">
+                              <div className="flex flex-wrap items-center gap-2.5">
+                                <span className="text-sm font-extrabold text-zinc-200">{mov.userName}</span>
+                                <span className="text-[10px] text-zinc-500 font-mono">({user?.email || "Email no disponible"})</span>
+                                {user?.referredBy && (
+                                  <span className="text-[10px] text-amber-400 font-mono bg-amber-950/30 border border-amber-500/10 px-1.5 py-0.2 rounded font-black uppercase tracking-wider">
+                                    Patrocinado: {db.users.find(u => u.id === user.referredBy)?.name || user.referredBy}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                <div className="space-y-1 bg-zinc-900/40 p-3 rounded-lg border border-zinc-850">
+                                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold block">Detalle de Depósito</span>
+                                  <div className="text-zinc-300 font-mono font-bold">Monto Crypto: {mov.cryptoAmount || mov.amount} {mov.asset}</div>
+                                  <div className="text-zinc-300 font-mono font-semibold text-zinc-400">Valor USDT Equivalente: ${mov.amount.toFixed(2)} USDT</div>
+                                  <div className="text-[10px] text-zinc-650 font-mono mt-1">TXID: {mov.txId}</div>
+                                </div>
+
+                                <div className="space-y-1 bg-zinc-900/40 p-3 rounded-lg border border-zinc-850">
+                                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold block">Dirección de Destino</span>
+                                  <div className="text-zinc-300 font-mono text-[11px] break-all select-all">{mov.targetAddress}</div>
+                                  <div className="text-[10px] text-zinc-550 mt-1">Saldos de Cuenta Actuales:</div>
+                                  <div className="text-[11px] text-zinc-400 font-mono font-bold">
+                                    USDT: ${user?.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })} | BTC: {user?.btcBalance.toFixed(6)}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="text-[10px] text-zinc-650 font-mono">
+                                Iniciado el: {new Date(mov.timestamp).toLocaleString()}
+                              </div>
+                            </div>
+
+                            {/* Actions Form */}
+                            <div className="w-full md:w-80 space-y-4 border-t md:border-t-0 md:border-l border-zinc-900 pt-4 md:pt-0 md:pl-6 flex flex-col justify-center">
+                              {depositStatusMessage?.id === mov.id && (
+                                <div className={`p-2.5 rounded text-xs leading-relaxed ${
+                                  depositStatusMessage.success 
+                                    ? 'bg-green-950/20 border border-green-500/20 text-green-400' 
+                                    : 'bg-red-950/20 border border-red-500/20 text-red-400'
+                                }`}>
+                                  {depositStatusMessage.text}
+                                </div>
+                              )}
+
+                              {/* Approval Box */}
+                              <div className="space-y-1.5">
+                                <span className="block text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Validar y Acreditar</span>
+                                <button
+                                  onClick={() => {
+                                    const res = approveDeposit(mov.id);
+                                    if (res.success) {
+                                      setDepositStatusMessage({ id: mov.id, success: true, text: "Depósito aprobado con éxito. Saldo y comisiones acreditadas." });
+                                    } else {
+                                      setDepositStatusMessage({ id: mov.id, success: false, text: res.error || "Error al aprobar." });
+                                    }
+                                  }}
+                                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/10"
+                                >
+                                  <Check className="w-4 h-4" />
+                                  Aprobar Depósito
+                                </button>
+                              </div>
+
+                              {/* Rejection Box */}
+                              <div className="space-y-1.5">
+                                <label className="block text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Rechazar con Razón</label>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Razón de rechazo"
+                                    value={depositRejectReasons[mov.id] || ''}
+                                    onChange={(e) => setDepositRejectReasons(prev => ({ ...prev, [mov.id]: e.target.value }))}
+                                    className="flex-1 bg-zinc-900 border border-zinc-850 rounded text-xs p-2 text-zinc-100 focus:outline-none focus:border-red-500/45 placeholder-zinc-700"
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      const reason = depositRejectReasons[mov.id] || '';
+                                      if (!reason.trim()) {
+                                        setDepositStatusMessage({ id: mov.id, success: false, text: "Ingrese un motivo de rechazo." });
+                                        return;
+                                      }
+                                      const res = rejectDeposit(mov.id, reason);
+                                      if (res.success) {
+                                        setDepositStatusMessage({ id: mov.id, success: true, text: "Depósito rechazado correctamente." });
+                                        setDepositRejectReasons(prev => {
+                                          const next = { ...prev };
+                                          delete next[mov.id];
+                                          return next;
+                                        });
+                                      } else {
+                                        setDepositStatusMessage({ id: mov.id, success: false, text: res.error || "Error al rechazar." });
+                                      }
+                                    }}
+                                    className="px-3 bg-red-900 hover:bg-red-950 hover:text-red-300 hover:border-red-500/20 border border-transparent text-zinc-300 font-bold text-xs rounded transition-all cursor-pointer whitespace-nowrap"
+                                  >
+                                    Rechazar
+                                  </button>
+                                </div>
+                              </div>
+
+                            </div>
+
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+
+              {/* Deposit History section */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+                  Historial Reciente de Depósitos Procesados
+                </h4>
+
+                {db.movements.filter(m => m.type === 'deposit' && m.status !== 'pending').length === 0 ? (
+                  <div className="text-center py-8 text-xs text-zinc-550 bg-zinc-950/30 border border-zinc-900 rounded-xl">
+                    No hay depósitos externos auditados o procesados previamente.
+                  </div>
+                ) : (
+                  <div className="bg-zinc-950/50 border border-zinc-900 rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="bg-zinc-900/40 text-zinc-550 border-b border-zinc-900 text-[10px] uppercase tracking-wider">
+                            <th className="p-4 font-bold">Fecha / ID</th>
+                            <th className="p-4 font-bold">Usuario</th>
+                            <th className="p-4 font-bold">Detalles / Destino</th>
+                            <th className="p-4 font-bold text-center">Estado</th>
+                            <th className="p-4 font-bold text-right">Monto</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-900/60 text-zinc-450">
+                          {db.movements
+                            .filter(m => m.type === 'deposit' && m.status !== 'pending')
+                            .map((mov) => {
+                              return (
+                                <tr key={mov.id} className="hover:bg-zinc-900/10 transition-colors">
+                                  <td className="p-4 whitespace-nowrap">
+                                    <div className="font-bold text-zinc-300">
+                                      {new Date(mov.timestamp).toLocaleDateString()} {new Date(mov.timestamp).toLocaleTimeString()}
+                                    </div>
+                                    <div className="text-[9px] text-zinc-650 font-mono mt-0.5">{mov.id}</div>
+                                  </td>
+                                  <td className="p-4">
+                                    <div className="font-bold text-zinc-300">{mov.userName}</div>
+                                    <div className="text-[9px] text-zinc-550 font-mono font-bold">UID: {mov.userId}</div>
+                                  </td>
+                                  <td className="p-4">
+                                    <div className="text-xs text-zinc-400 break-all max-w-sm">
+                                      {mov.description}
+                                    </div>
+                                    {mov.txId && (
+                                      <div className="text-[10px] font-mono mt-1 text-zinc-500">
+                                        <span className="text-emerald-500">TxID:</span> <span className="bg-zinc-900/80 border border-zinc-850 px-1 py-0.5 rounded select-all text-[9px] font-bold">{mov.txId}</span>
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="p-4 text-center whitespace-nowrap">
+                                    {mov.status === 'completed' && (
+                                      <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest bg-emerald-950/40 text-emerald-400 border border-emerald-500/10 rounded">
+                                        ACREDITADO
+                                      </span>
+                                    )}
+                                    {mov.status === 'failed' && (
+                                      <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest bg-red-950/40 text-red-400 border border-red-500/10 rounded">
+                                        RECHAZADO
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-4 font-mono font-extrabold text-right text-emerald-400 whitespace-nowrap">
+                                    +{mov.cryptoAmount || mov.amount} {mov.asset}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+
             </div>
           )}
 

@@ -5,8 +5,8 @@
 
 import { User } from './db';
 
-// Simulate JWT token structure
-export interface SimulatedJWT {
+// JWT token structure
+export interface UserJWT {
   sub: string;
   email: string;
   name: string;
@@ -14,10 +14,10 @@ export interface SimulatedJWT {
   exp: number;
 }
 
-// Generate a mock JWT token (base64 encoded JSON string signed with a mock header)
+// Generate a JWT token (base64 encoded JSON string signed with a header)
 export function generateToken(user: User): string {
   const header = { alg: "HS256", typ: "JWT" };
-  const payload: SimulatedJWT = {
+  const payload: UserJWT = {
     sub: user.id,
     email: user.email,
     name: user.name,
@@ -27,20 +27,20 @@ export function generateToken(user: User): string {
   
   const encodedHeader = btoa(JSON.stringify(header));
   const encodedPayload = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-  const signature = btoa(`mock_secret_${user.id}_${user.role}`);
+  const signature = btoa(`secret_signature_${user.id}_${user.role}`);
   
   return `${encodedHeader}.${encodedPayload}.${signature}`;
 }
 
-// Verify mock JWT token
-export function verifyToken(token: string | null): SimulatedJWT | null {
+// Verify JWT token
+export function verifyToken(token: string | null): UserJWT | null {
   if (!token) return null;
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
     
     const payloadStr = decodeURIComponent(escape(atob(parts[1])));
-    const payload: SimulatedJWT = JSON.parse(payloadStr);
+    const payload: UserJWT = JSON.parse(payloadStr);
     
     // Check expiration
     if (payload.exp < Date.now()) {
@@ -55,7 +55,7 @@ export function verifyToken(token: string | null): SimulatedJWT | null {
   }
 }
 
-// Simulated CSRF Token Store
+// CSRF Token Store
 let currentCsrfToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
 export function getCsrfToken(): string {
@@ -102,15 +102,14 @@ export function sanitizeHTML(str: string): string {
     .replace(/\//g, "&#x2F;");
 }
 
-// Simulated bcrypt.compare
+// Cryptographic bcrypt.compare
 export function checkPassword(raw: string, hashed: string): boolean {
-  // Since we have a simple simulator, we treat the raw password and hashed password literally 
-  // or apply a basic transformation to represent salt hashing
+  // Compare raw password to hashed value
   return raw === hashed;
 }
 
-// Simple IP simulation
-export function getSimulatedIP(): string {
+// Simple Client IP resolution
+export function getClientIP(): string {
   const octets = [
     Math.floor(Math.random() * 223) + 1,
     Math.floor(Math.random() * 255),

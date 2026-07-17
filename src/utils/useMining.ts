@@ -23,7 +23,7 @@ import {
   generateToken, 
   verifyToken, 
   checkRateLimit, 
-  getSimulatedIP, 
+  getClientIP, 
   rotateCsrfToken, 
   getCsrfToken 
 } from './security';
@@ -100,31 +100,9 @@ export function useMining() {
           return user;
         });
 
-        // 2b. Crypto Deposits blockchain confirmation simulation
+        // 2b. Crypto Deposits blockchain confirmation simulation (Disabled: must be approved manually by Administrator)
         let completedDeposits: Movement[] = [];
-        const updatedMovements = prev.movements.map(mov => {
-          if (mov.type === 'deposit' && mov.status === 'confirming') {
-            hasChanges = true;
-            const currentConf = mov.confirmations ?? 0;
-            const nextConf = currentConf + 1;
-            if (nextConf >= 3) {
-              const completedMov: Movement = {
-                ...mov,
-                confirmations: 3,
-                status: 'completed',
-                description: `Depósito acreditado de ${mov.cryptoAmount} ${mov.asset}`
-              };
-              completedDeposits.push(completedMov);
-              return completedMov;
-            } else {
-              return {
-                ...mov,
-                confirmations: nextConf
-              };
-            }
-          }
-          return mov;
-        });
+        const updatedMovements = prev.movements.map(mov => mov);
 
         // 2c. Credit User Balances for completed deposits & create alerts
         let finalActivityLogs = [...prev.activityLogs];
@@ -231,7 +209,7 @@ export function useMining() {
         userName: email,
         action: "FAILED_LOGIN",
         details: `Intento fallido de inicio de sesión para el correo: ${email}`,
-        ipAddress: getSimulatedIP(),
+        ipAddress: getClientIP(),
         timestamp: new Date().toISOString()
       };
       updateDbState(prev => ({
@@ -264,7 +242,7 @@ export function useMining() {
       userName: user.name,
       action: "LOGIN",
       details: "Inicio de sesión exitoso",
-      ipAddress: getSimulatedIP(),
+      ipAddress: getClientIP(),
       timestamp: new Date().toISOString()
     };
     updateDbState(prev => ({
@@ -283,34 +261,46 @@ export function useMining() {
   ): { success: boolean; error?: string; status?: UserStatus } => {
     if (!enforceSecurity(email, 'register')) return { success: false, error: 'Rate limit' };
 
-    // Find Invite Code
-    const inviteIndex = db.invitations.findIndex(inv => inv.code.toUpperCase() === inviteCode.trim().toUpperCase());
-    if (inviteIndex === -1) {
-      return { success: false, error: "Código de invitación inválido o inexistente." };
-    }
-
-    const invite = db.invitations[inviteIndex];
-    if (!invite.isActive) {
-      return { success: false, error: "Este código de invitación ha sido desactivado." };
-    }
-
-    if (invite.maxUses !== -1 && invite.usedCount >= invite.maxUses) {
-      return { success: false, error: "Este código de invitación ha alcanzado su límite máximo de usos." };
-    }
-
-    if (invite.expiresAt && new Date(invite.expiresAt).getTime() < Date.now()) {
-      return { success: false, error: "Este código de invitación ha expirado." };
-    }
-
     // Check if email already registered
     const emailExists = db.users.some(u => u.email.toLowerCase() === email.toLowerCase());
     if (emailExists) {
       return { success: false, error: "Este correo electrónico ya se encuentra registrado." };
     }
 
-    // Valid invite! Register user as PENDING_APPROVAL
+    let referredByUserId: string | undefined = undefined;
+    let usedInviteCode = inviteCode.trim();
+    let inviteIndex = db.invitations.findIndex(inv => inv.code.toUpperCase() === usedInviteCode.toUpperCase());
+
+    if (inviteIndex !== -1) {
+      const invite = db.invitations[inviteIndex];
+      if (!invite.isActive) {
+        return { success: false, error: "Este código de invitación ha sido desactivado." };
+      }
+      if (invite.maxUses !== -1 && invite.usedCount >= invite.maxUses) {
+        return { success: false, error: "Este código de invitación ha alcanzado su límite máximo de usos." };
+      }
+      if (invite.expiresAt && new Date(invite.expiresAt).getTime() < Date.now()) {
+        return { success: false, error: "Este código de invitación ha expirado." };
+      }
+      if (invite.createdBy && invite.createdBy !== 'user-admin') {
+        referredByUserId = invite.createdBy;
+      }
+    } else {
+      // Check if inviteCode is the email or ID of an existing user
+      const referrerUser = db.users.find(u => 
+        u.email.toLowerCase() === usedInviteCode.toLowerCase() || 
+        u.id.toLowerCase() === usedInviteCode.toLowerCase()
+      );
+      if (referrerUser) {
+        referredByUserId = referrerUser.id;
+      } else {
+        return { success: false, error: "Código de invitación o correo de patrocinador inválido." };
+      }
+    }
+
+    // Valid invite! Register user as PENDING_APPROVAL with 0 balance
     const newUserId = "user-" + Math.random().toString(36).substring(2, 9);
-    const initialB = 500.00; // Sign-up gift balance in USDT
+    const initialB = 0;
 
     const newUser: User = {
       id: newUserId,
@@ -322,19 +312,8 @@ export function useMining() {
       balance: initialB,
       btcBalance: 0,
       initialBalance: initialB,
+      referredBy: referredByUserId,
       createdAt: new Date().toISOString()
-    };
-
-    // Prepare Movement and Log
-    const newMovement: Movement = {
-      id: "mov-" + Date.now(),
-      userId: newUserId,
-      userName: name,
-      type: 'signup_bonus',
-      amount: initialB,
-      asset: 'USDT',
-      description: `Bono promocional de registro con código: ${invite.code}`,
-      timestamp: new Date().toISOString()
     };
 
     const newActivity: ActivityLog = {
@@ -342,25 +321,27 @@ export function useMining() {
       userId: newUserId,
       userName: name,
       action: "REGISTER",
-      details: `Registro exitoso usando invitación (${invite.code}). Cuenta en espera de aprobación.`,
-      ipAddress: getSimulatedIP(),
+      details: `Registro exitoso usando código/referido (${usedInviteCode}). Cuenta en espera de aprobación.`,
+      ipAddress: getClientIP(),
       timestamp: new Date().toISOString()
     };
 
     updateDbState(prev => {
-      // Update invitation uses
-      const updatedInvites = prev.invitations.map((inv, idx) => {
-        if (idx === inviteIndex) {
-          return { ...inv, usedCount: inv.usedCount + 1 };
-        }
-        return inv;
-      });
+      // Update invitation uses if it was a system invitation
+      let updatedInvites = prev.invitations;
+      if (inviteIndex !== -1) {
+        updatedInvites = prev.invitations.map((inv, idx) => {
+          if (idx === inviteIndex) {
+            return { ...inv, usedCount: inv.usedCount + 1 };
+          }
+          return inv;
+        });
+      }
 
       return {
         ...prev,
         users: [...prev.users, newUser],
         invitations: updatedInvites,
-        movements: [newMovement, ...prev.movements],
         activityLogs: [newActivity, ...prev.activityLogs]
       };
     });
@@ -376,7 +357,7 @@ export function useMining() {
         userName: currentUser.name,
         action: "LOGOUT",
         details: "Cierre de sesión manual",
-        ipAddress: getSimulatedIP(),
+        ipAddress: getClientIP(),
         timestamp: new Date().toISOString()
       };
       updateDbState(prev => ({
@@ -428,7 +409,7 @@ export function useMining() {
       userName: currentUser.name,
       action: "PURCHASE_RIG",
       details: `Adquirió el rig ${rigName} por ${cost} USDT (${hashrate} MH/s)`,
-      ipAddress: getSimulatedIP(),
+      ipAddress: getClientIP(),
       timestamp: new Date().toISOString()
     };
 
@@ -474,7 +455,7 @@ export function useMining() {
         userName: currentUser.name,
         action: currentStatus === 'running' ? "START_RIG" : "PAUSE_RIG",
         details: `Cambió estado de rig a ${currentStatus === 'running' ? 'Activo' : 'Pausado'}`,
-        ipAddress: getSimulatedIP(),
+        ipAddress: getClientIP(),
         timestamp: new Date().toISOString()
       };
 
@@ -527,7 +508,7 @@ export function useMining() {
       userName: currentUser.name,
       action: "CONVERT_BTC",
       details: `Intercambió ${btcAmount.toFixed(6)} BTC por $${usdtEarned.toFixed(2)} USDT`,
-      ipAddress: getSimulatedIP(),
+      ipAddress: getClientIP(),
       timestamp: new Date().toISOString()
     };
 
@@ -611,9 +592,9 @@ export function useMining() {
       type: 'deposit',
       amount: usdtValue,
       asset: asset,
-      description: `Depósito en espera (+${cryptoAmount} ${asset} en ${network})`,
+      description: `Depósito pendiente de aprobación por el Admin (+${cryptoAmount} ${asset} en ${network})`,
       timestamp: new Date().toISOString(),
-      status: 'confirming',
+      status: 'pending',
       txId: txId,
       confirmations: 0,
       cryptoAmount: cryptoAmount,
@@ -626,7 +607,7 @@ export function useMining() {
       userName: currentUser.name,
       action: "INITIATE_DEPOSIT",
       details: `Inició solicitud de depósito de ${cryptoAmount} ${asset} en la red ${network}. TXID: ${txId.substring(0, 10)}...`,
-      ipAddress: getSimulatedIP(),
+      ipAddress: getClientIP(),
       timestamp: new Date().toISOString()
     };
 
@@ -1086,7 +1067,7 @@ export function useMining() {
       userName: currentUser.name,
       action: "TRANSFER_BALANCE",
       details: `Transfirió $${amount.toFixed(2)} USDT a ${recipient.name} (${recipient.email})`,
-      ipAddress: "simulated_ip",
+      ipAddress: getClientIP(),
       timestamp
     };
 
@@ -1113,6 +1094,404 @@ export function useMining() {
         movements: [senderMovement, recipientMovement, ...prev.movements],
         notifications: [senderNotif, recipientNotif, ...prev.notifications],
         activityLogs: [activityLog, ...prev.activityLogs]
+      };
+    });
+
+    return { success: true };
+  };
+
+  // Request a formal withdrawal to an external address, awaiting admin approval
+  const requestWithdrawal = (
+    asset: 'USDT' | 'BTC',
+    amount: number,
+    network: string,
+    targetAddress: string
+  ): { success: boolean; error?: string } => {
+    if (!currentUser) return { success: false, error: "No autenticado" };
+    if (currentUser.status !== 'active') return { success: false, error: "Tu cuenta no está activa para realizar retiros." };
+
+    if (isNaN(amount) || amount <= 0) {
+      return { success: false, error: "Por favor ingrese un monto válido mayor a 0." };
+    }
+
+    if (!targetAddress.trim()) {
+      return { success: false, error: "La dirección de retiro es obligatoria." };
+    }
+
+    if (asset === 'USDT') {
+      if (currentUser.balance < amount) {
+        return { success: false, error: "Saldo de USDT insuficiente." };
+      }
+    } else if (asset === 'BTC') {
+      if (currentUser.btcBalance < amount) {
+        return { success: false, error: "Saldo de BTC insuficiente." };
+      }
+    } else {
+      return { success: false, error: "Activo no soportado para retiro." };
+    }
+
+    if (!enforceSecurity(currentUser.id, 'request_withdrawal')) {
+      return { success: false, error: 'Has superado el límite de intentos. Por favor espera unos momentos.' };
+    }
+
+    const timestamp = new Date().toISOString();
+    const id = "withdrawal-" + Date.now();
+
+    const withdrawalMovement: Movement = {
+      id,
+      userId: currentUser.id,
+      userName: currentUser.name,
+      type: 'withdrawal',
+      amount: -amount,
+      asset,
+      description: `Retiro solicitado de ${amount} ${asset} por red ${network} a la dirección: ${targetAddress}`,
+      timestamp,
+      status: 'pending',
+      targetAddress,
+    };
+
+    const activityLog: ActivityLog = {
+      id: "act-" + Date.now(),
+      userId: currentUser.id,
+      userName: currentUser.name,
+      action: "REQUEST_WITHDRAWAL",
+      details: `Solicitó retiro formal de ${amount} ${asset} a la dirección ${targetAddress}`,
+      ipAddress: getClientIP(),
+      timestamp
+    };
+
+    updateDbState(prev => {
+      const updatedUsers = prev.users.map(u => {
+        if (u.id === currentUser.id) {
+          if (asset === 'USDT') {
+            return { ...u, balance: u.balance - amount };
+          } else {
+            return { ...u, btcBalance: u.btcBalance - amount };
+          }
+        }
+        return u;
+      });
+
+      return {
+        ...prev,
+        users: updatedUsers,
+        movements: [withdrawalMovement, ...prev.movements],
+        activityLogs: [activityLog, ...prev.activityLogs]
+      };
+    });
+
+    return { success: true };
+  };
+
+  // Approve a pending withdrawal request (Admin Only)
+  const approveWithdrawal = (
+    withdrawalId: string,
+    txId: string
+  ): { success: boolean; error?: string } => {
+    if (!currentUser || currentUser.role !== 'admin') return { success: false, error: "No autorizado" };
+
+    const movement = db.movements.find(m => m.id === withdrawalId && m.type === 'withdrawal' && m.status === 'pending');
+    if (!movement) return { success: false, error: "No se encontró la solicitud de retiro pendiente." };
+
+    const cleanTxId = txId.trim();
+    if (!cleanTxId) return { success: false, error: "Se requiere un ID de transacción (TxID) para aprobar el retiro." };
+
+    const timestamp = new Date().toISOString();
+
+    const audit: AuditLog = {
+      id: "aud-" + Date.now(),
+      adminId: currentUser.id,
+      adminName: currentUser.name,
+      action: "APPROVE_WITHDRAWAL",
+      targetUserId: movement.userId,
+      targetUserName: movement.userName,
+      details: `Aprobó el retiro ${withdrawalId} de ${Math.abs(movement.amount)} ${movement.asset}. TxID: ${cleanTxId}`,
+      timestamp
+    };
+
+    const userNotif: Notification = {
+      id: "notif-" + Math.random().toString(36).substring(2, 9),
+      userId: movement.userId,
+      title: "✅ Retiro Aprobado",
+      message: `Tu solicitud de retiro por ${Math.abs(movement.amount)} ${movement.asset} ha sido aprobada por el administrador. TxID: ${cleanTxId}`,
+      readBy: [],
+      createdAt: timestamp
+    };
+
+    updateDbState(prev => {
+      const updatedMovements = prev.movements.map(m => {
+        if (m.id === withdrawalId) {
+          return {
+            ...m,
+            status: 'completed' as const,
+            txId: cleanTxId,
+            timestamp
+          };
+        }
+        return m;
+      });
+
+      return {
+        ...prev,
+        movements: updatedMovements,
+        auditLogs: [audit, ...prev.auditLogs],
+        notifications: [userNotif, ...prev.notifications]
+      };
+    });
+
+    return { success: true };
+  };
+
+  // Reject a pending withdrawal request (Admin Only)
+  const rejectWithdrawal = (
+    withdrawalId: string,
+    reason: string
+  ): { success: boolean; error?: string } => {
+    if (!currentUser || currentUser.role !== 'admin') return { success: false, error: "No autorizado" };
+
+    const movement = db.movements.find(m => m.id === withdrawalId && m.type === 'withdrawal' && m.status === 'pending');
+    if (!movement) return { success: false, error: "No se encontró la solicitud de retiro pendiente." };
+
+    const cleanReason = reason.trim() || "Rechazado por el administrador";
+    const timestamp = new Date().toISOString();
+
+    const audit: AuditLog = {
+      id: "aud-" + Date.now(),
+      adminId: currentUser.id,
+      adminName: currentUser.name,
+      action: "REJECT_WITHDRAWAL",
+      targetUserId: movement.userId,
+      targetUserName: movement.userName,
+      details: `Rechazó el retiro ${withdrawalId} de ${Math.abs(movement.amount)} ${movement.asset}. Razón: ${cleanReason}`,
+      timestamp
+    };
+
+    const userNotif: Notification = {
+      id: "notif-" + Math.random().toString(36).substring(2, 9),
+      userId: movement.userId,
+      title: "❌ Retiro Rechazado",
+      message: `Tu solicitud de retiro por ${Math.abs(movement.amount)} ${movement.asset} ha sido rechazada. Razón: ${cleanReason}. Los fondos han sido devueltos a tu balance.`,
+      readBy: [],
+      createdAt: timestamp
+    };
+
+    updateDbState(prev => {
+      const updatedMovements = prev.movements.map(m => {
+        if (m.id === withdrawalId) {
+          return {
+            ...m,
+            status: 'failed' as const,
+            description: `${m.description} - RECHAZADO: ${cleanReason}`,
+            timestamp
+          };
+        }
+        return m;
+      });
+
+      const updatedUsers = prev.users.map(u => {
+        if (u.id === movement.userId) {
+          if (movement.asset === 'USDT') {
+            return {
+              ...u,
+              balance: u.balance + Math.abs(movement.amount)
+            };
+          } else {
+            return {
+              ...u,
+              btcBalance: u.btcBalance + Math.abs(movement.amount)
+            };
+          }
+        }
+        return u;
+      });
+
+      return {
+        ...prev,
+        users: updatedUsers,
+        movements: updatedMovements,
+        auditLogs: [audit, ...prev.auditLogs],
+        notifications: [userNotif, ...prev.notifications]
+      };
+    });
+
+    return { success: true };
+  };
+
+  // Approve a pending deposit request (Admin Only) with 7% referral commission
+  const approveDeposit = (
+    depositId: string
+  ): { success: boolean; error?: string } => {
+    if (!currentUser || currentUser.role !== 'admin') return { success: false, error: "No autorizado" };
+
+    const movement = db.movements.find(m => m.id === depositId && m.type === 'deposit' && m.status === 'pending');
+    if (!movement) return { success: false, error: "No se encontró la solicitud de depósito pendiente." };
+
+    const timestamp = new Date().toISOString();
+
+    const audit: AuditLog = {
+      id: "aud-" + Date.now(),
+      adminId: currentUser.id,
+      adminName: currentUser.name,
+      action: "APPROVE_DEPOSIT",
+      targetUserId: movement.userId,
+      targetUserName: movement.userName,
+      details: `Aprobó el depósito ${depositId} de ${movement.cryptoAmount} ${movement.asset} ($${movement.amount.toFixed(2)} USDT)`,
+      timestamp
+    };
+
+    const userNotif: Notification = {
+      id: "notif-" + Math.random().toString(36).substring(2, 9),
+      userId: movement.userId,
+      title: "✅ Depósito Aprobado",
+      message: `Tu solicitud de depósito por ${movement.cryptoAmount} ${movement.asset} ($${movement.amount.toFixed(2)} USDT) ha sido aprobada por el administrador y acreditada en tu balance.`,
+      readBy: [],
+      createdAt: timestamp
+    };
+
+    updateDbState(prev => {
+      const depositor = prev.users.find(u => u.id === movement.userId);
+      let updatedUsers = prev.users.map(u => {
+        if (u.id === movement.userId) {
+          if (movement.asset === 'BTC') {
+            return {
+              ...u,
+              btcBalance: u.btcBalance + (movement.cryptoAmount || 0)
+            };
+          } else {
+            return {
+              ...u,
+              balance: u.balance + movement.amount
+            };
+          }
+        }
+        return u;
+      });
+
+      let referralMovement: Movement | null = null;
+      let referralNotif: Notification | null = null;
+
+      if (depositor && depositor.referredBy) {
+        const referrerId = depositor.referredBy;
+        const referrer = prev.users.find(u => u.id === referrerId);
+        if (referrer) {
+          const commissionAmount = movement.amount * 0.07;
+          if (commissionAmount > 0) {
+            updatedUsers = updatedUsers.map(u => {
+              if (u.id === referrerId) {
+                return {
+                  ...u,
+                  balance: u.balance + commissionAmount
+                };
+              }
+              return u;
+            });
+
+            referralMovement = {
+              id: "mov-" + Date.now() + "-ref",
+              userId: referrerId,
+              userName: referrer.name,
+              type: 'admin_adjustment',
+              amount: commissionAmount,
+              asset: 'USDT',
+              description: `Comisión de referido (7%) del depósito de ${depositor.name}`,
+              timestamp: new Date().toISOString()
+            };
+
+            referralNotif = {
+              id: "notif-ref-" + Math.random().toString(36).substring(2, 9),
+              userId: referrerId,
+              title: "🎉 Comisión de Referido Acreditada",
+              message: `Has recibido una comisión de ${commissionAmount.toFixed(2)} USDT (7%) por el depósito aprobado de tu referido ${depositor.name}.`,
+              readBy: [],
+              createdAt: timestamp
+            };
+          }
+        }
+      }
+
+      const updatedMovements = prev.movements.map(m => {
+        if (m.id === depositId) {
+          return {
+            ...m,
+            status: 'completed' as const,
+            description: `Depósito acreditado de ${m.cryptoAmount} ${m.asset}`,
+            timestamp
+          };
+        }
+        return m;
+      });
+
+      const nextMovements = referralMovement 
+        ? [referralMovement, ...updatedMovements] 
+        : updatedMovements;
+
+      const nextNotifications = referralNotif 
+        ? [referralNotif, userNotif, ...prev.notifications] 
+        : [userNotif, ...prev.notifications];
+
+      return {
+        ...prev,
+        users: updatedUsers,
+        movements: nextMovements,
+        auditLogs: [audit, ...prev.auditLogs],
+        notifications: nextNotifications
+      };
+    });
+
+    return { success: true };
+  };
+
+  // Reject a pending deposit request (Admin Only)
+  const rejectDeposit = (
+    depositId: string,
+    reason: string
+  ): { success: boolean; error?: string } => {
+    if (!currentUser || currentUser.role !== 'admin') return { success: false, error: "No autorizado" };
+
+    const movement = db.movements.find(m => m.id === depositId && m.type === 'deposit' && m.status === 'pending');
+    if (!movement) return { success: false, error: "No se encontró la solicitud de depósito pendiente." };
+
+    const cleanReason = reason.trim() || "Rechazado por el administrador";
+    const timestamp = new Date().toISOString();
+
+    const audit: AuditLog = {
+      id: "aud-" + Date.now(),
+      adminId: currentUser.id,
+      adminName: currentUser.name,
+      action: "REJECT_DEPOSIT",
+      targetUserId: movement.userId,
+      targetUserName: movement.userName,
+      details: `Rechazó el depósito ${depositId} de ${movement.cryptoAmount} ${movement.asset}. Razón: ${cleanReason}`,
+      timestamp
+    };
+
+    const userNotif: Notification = {
+      id: "notif-" + Math.random().toString(36).substring(2, 9),
+      userId: movement.userId,
+      title: "❌ Depósito Rechazado",
+      message: `Tu solicitud de depósito por ${movement.cryptoAmount} ${movement.asset} ha sido rechazada por el administrador. Razón: ${cleanReason}`,
+      readBy: [],
+      createdAt: timestamp
+    };
+
+    updateDbState(prev => {
+      const updatedMovements = prev.movements.map(m => {
+        if (m.id === depositId) {
+          return {
+            ...m,
+            status: 'failed' as const,
+            description: `Depósito RECHAZADO: ${cleanReason}`,
+            timestamp
+          };
+        }
+        return m;
+      });
+
+      return {
+        ...prev,
+        movements: updatedMovements,
+        auditLogs: [audit, ...prev.auditLogs],
+        notifications: [userNotif, ...prev.notifications]
       };
     });
 
@@ -1191,6 +1570,11 @@ export function useMining() {
     publishAnnouncement,
     updateDepositAddresses,
     transferBalance,
+    requestWithdrawal,
+    approveWithdrawal,
+    rejectWithdrawal,
+    approveDeposit,
+    rejectDeposit,
     readNotification,
     sandboxLogin,
     forceReset

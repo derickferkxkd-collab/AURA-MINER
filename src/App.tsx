@@ -30,6 +30,11 @@ export default function App() {
     publishAnnouncement,
     updateDepositAddresses,
     transferBalance,
+    requestWithdrawal,
+    approveWithdrawal,
+    rejectWithdrawal,
+    approveDeposit,
+    rejectDeposit,
     readNotification,
     sandboxLogin,
     forceReset
@@ -67,6 +72,10 @@ export default function App() {
           modifyUserBalance={modifyUserBalance}
           publishAnnouncement={publishAnnouncement}
           updateDepositAddresses={updateDepositAddresses}
+          approveWithdrawal={approveWithdrawal}
+          rejectWithdrawal={rejectWithdrawal}
+          approveDeposit={approveDeposit}
+          rejectDeposit={rejectDeposit}
           logout={logout}
         />
       ) : (
@@ -78,6 +87,7 @@ export default function App() {
           convertBtcToUsdt={convertBtcToUsdt}
           createCryptoDeposit={createCryptoDeposit}
           transferBalance={transferBalance}
+          requestWithdrawal={requestWithdrawal}
           readNotification={readNotification}
           logout={logout}
         />

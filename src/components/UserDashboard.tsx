@@ -20,7 +20,8 @@ import {
   Zap, 
   FileText, 
   Megaphone,
-  Check
+  Check,
+  ArrowUpRight
 } from 'lucide-react';
 import { DatabaseState, User, MiningRig, Movement, ActivityLog } from '../utils/db';
 
@@ -32,6 +33,7 @@ interface UserDashboardProps {
   convertBtcToUsdt: (btcAmount: number) => { success: boolean; error?: string };
   createCryptoDeposit: (asset: 'USDT' | 'BTC' | 'ETH' | 'TRX', cryptoAmount: number, network: string) => { success: boolean; error?: string; txId?: string; address?: string };
   transferBalance: (recipientEmail: string, amount: number) => { success: boolean; error?: string };
+  requestWithdrawal: (asset: 'USDT' | 'BTC', amount: number, network: string, targetAddress: string) => { success: boolean; error?: string };
   readNotification: (notifId: string) => void;
   logout: () => void;
 }
@@ -52,12 +54,13 @@ export default function UserDashboard({
   convertBtcToUsdt,
   createCryptoDeposit,
   transferBalance,
+  requestWithdrawal,
   readNotification,
   logout
 }: UserDashboardProps) {
   
   // Tab/Screen states
-  const [activeTab, setActiveTab] = useState<'mining' | 'shop' | 'logs' | 'announcements' | 'deposit' | 'transfer'>('mining');
+  const [activeTab, setActiveTab] = useState<'mining' | 'shop' | 'logs' | 'announcements' | 'deposit' | 'transfer' | 'withdraw'>('mining');
   
   // Swap tool states
   const [btcToConvert, setBtcToConvert] = useState<string>('');
@@ -143,6 +146,48 @@ export default function UserDashboard({
       setTransferAmount('');
     } else {
       setTransferError(res.error || "Fallo al realizar la transferencia.");
+    }
+  };
+
+  // Withdrawal States
+  const [withdrawAsset, setWithdrawAsset] = useState<'USDT' | 'BTC'>('USDT');
+  const [withdrawAmount, setWithdrawAmount] = useState<string>('');
+  const [withdrawNetwork, setWithdrawNetwork] = useState<string>('TRC20');
+  const [withdrawAddress, setWithdrawAddress] = useState<string>('');
+  const [withdrawSuccess, setWithdrawSuccess] = useState<string | null>(null);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (withdrawAsset === 'BTC') {
+      setWithdrawNetwork('Bitcoin');
+    } else {
+      setWithdrawNetwork('TRC20');
+    }
+  }, [withdrawAsset]);
+
+  const handleWithdrawSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setWithdrawSuccess(null);
+    setWithdrawError(null);
+
+    const amount = parseFloat(withdrawAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setWithdrawError("Por favor ingrese un monto de retiro válido mayor a 0.");
+      return;
+    }
+
+    if (!withdrawAddress.trim()) {
+      setWithdrawError("Por favor ingrese una dirección de destino válida.");
+      return;
+    }
+
+    const res = requestWithdrawal(withdrawAsset, amount, withdrawNetwork, withdrawAddress);
+    if (res.success) {
+      setWithdrawSuccess(`¡Solicitud de retiro registrada con éxito! Tu retiro de ${amount} ${withdrawAsset} está bajo revisión de seguridad y requiere aprobación de un administrador para procesar la transacción externa.`);
+      setWithdrawAmount('');
+      setWithdrawAddress('');
+    } else {
+      setWithdrawError(res.error || "Fallo al solicitar el retiro.");
     }
   };
 
@@ -390,7 +435,7 @@ export default function UserDashboard({
             }`}
           >
             <Activity className="w-4 h-4" />
-            Simulación de Minería
+            Minería Activa
           </button>
           <button
             onClick={() => setActiveTab('shop')}
@@ -437,6 +482,17 @@ export default function UserDashboard({
             Transferir Saldo <span className="text-[9px] bg-red-500 text-white font-black px-1.5 py-0.2 rounded shrink-0 uppercase tracking-widest ml-1">ENVIAR</span>
           </button>
           <button
+            onClick={() => setActiveTab('withdraw')}
+            className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+              activeTab === 'withdraw' 
+                ? 'border-red-500 text-red-500 bg-red-950/5' 
+                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <ArrowUpRight className="w-4 h-4 text-red-500" />
+            Retirar Fondos <span className="text-[9px] bg-red-500 text-white font-black px-1.5 py-0.2 rounded shrink-0 uppercase tracking-widest ml-1">RETIRO</span>
+          </button>
+          <button
             onClick={() => setActiveTab('announcements')}
             className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
               activeTab === 'announcements' 
@@ -463,7 +519,7 @@ export default function UserDashboard({
                 <div className="bg-zinc-950/50 border border-zinc-900 rounded-xl p-5">
                   <div className="flex justify-between items-center mb-4">
                     <div>
-                      <h3 className="text-sm font-bold text-zinc-200">Rendimiento de Hash Rate Simulador</h3>
+                      <h3 className="text-sm font-bold text-zinc-200">Rendimiento de Hash Rate en Tiempo Real</h3>
                       <p className="text-[11px] text-zinc-500">Fluctuación de potencia de cálculo global (MH/s) en tiempo real</p>
                     </div>
                     <div className="text-right">
@@ -778,7 +834,7 @@ export default function UserDashboard({
                 <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-4 font-mono text-[10px] max-h-96 overflow-y-auto space-y-3">
                   <div className="text-[11px] text-red-500 border-b border-zinc-900 pb-2 flex items-center justify-between">
                     <span>SECURITY CONSOLE LOG</span>
-                    <span className="text-zinc-600">IP SIMULADA: {currentUser.id === 'user-1' ? '192.168.1.45' : 'Dinámica'}</span>
+                    <span className="text-zinc-600">IP DE RED: {currentUser.id === 'user-1' ? '192.168.1.45' : 'Dinámica'}</span>
                   </div>
 
                   {userLogs.length === 0 ? (
@@ -1038,7 +1094,7 @@ export default function UserDashboard({
                 </h3>
 
                 {userMovements.filter(m => m.type === 'deposit').length === 0 ? (
-                  <div className="text-zinc-600 text-center py-8 text-xs">Aún no se registran depósitos en esta cuenta. Genera una dirección arriba para simular tu primer depósito.</div>
+                  <div className="text-zinc-600 text-center py-8 text-xs">Aún no se registran depósitos en esta cuenta. Genera una dirección de depósito para comenzar.</div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
@@ -1306,6 +1362,300 @@ export default function UserDashboard({
             </div>
           )}
 
+          {/* TAB 7: External Crypto Withdrawals */}
+          {activeTab === 'withdraw' && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* Withdrawal Form Panel */}
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-6 shadow-xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-6 opacity-5">
+                      <ArrowUpRight className="w-24 h-24 text-red-500 animate-pulse" />
+                    </div>
+                    
+                    <h3 className="text-base font-extrabold text-zinc-200 mb-1 flex items-center gap-2">
+                      <ArrowUpRight className="w-5 h-5 text-red-500" />
+                      Solicitud Formal de Retiro Cripto
+                    </h3>
+                    <p className="text-xs text-zinc-500 mb-6 leading-relaxed">
+                      Transfiere tus fondos de minería a cualquier billetera externa de criptomonedas. Por motivos de seguridad y prevención de fraudes, todos los retiros externos requieren la verificación y aprobación manual de un administrador.
+                    </p>
+
+                    {withdrawError && (
+                      <div className="p-3.5 rounded-lg bg-red-950/20 border border-red-500/20 text-xs text-red-400 mb-5 animate-pulse">
+                        {withdrawError}
+                      </div>
+                    )}
+                    {withdrawSuccess && (
+                      <div className="p-3.5 rounded-lg bg-green-950/20 border border-green-500/20 text-xs text-green-400 mb-5 animate-fadeIn">
+                        {withdrawSuccess}
+                      </div>
+                    )}
+
+                    <form onSubmit={handleWithdrawSubmit} className="space-y-5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        
+                        {/* Selector de Activo */}
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] uppercase tracking-wider font-bold text-zinc-400">
+                            Activo a Retirar
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setWithdrawAsset('USDT');
+                                setWithdrawAmount('');
+                              }}
+                              className={`py-2 px-3 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                                withdrawAsset === 'USDT'
+                                  ? 'bg-red-500/10 border-red-500 text-red-400 font-extrabold'
+                                  : 'bg-zinc-900 border-zinc-850 text-zinc-400 hover:text-zinc-200'
+                              }`}
+                            >
+                              USDT (Tether)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setWithdrawAsset('BTC');
+                                setWithdrawAmount('');
+                              }}
+                              className={`py-2 px-3 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                                withdrawAsset === 'BTC'
+                                  ? 'bg-red-500/10 border-red-500 text-red-400 font-extrabold'
+                                  : 'bg-zinc-900 border-zinc-850 text-zinc-400 hover:text-zinc-200'
+                              }`}
+                            >
+                              BTC (Bitcoin)
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Red de Retiro */}
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] uppercase tracking-wider font-bold text-zinc-400">
+                            Red de Blockchain
+                          </label>
+                          {withdrawAsset === 'BTC' ? (
+                            <input
+                              type="text"
+                              value="Bitcoin Mainnet"
+                              disabled
+                              className="w-full bg-zinc-900 border border-zinc-850 text-xs rounded-lg p-2.5 text-zinc-550 focus:outline-none cursor-not-allowed font-medium"
+                            />
+                          ) : (
+                            <select
+                              value={withdrawNetwork}
+                              onChange={(e) => setWithdrawNetwork(e.target.value)}
+                              className="w-full bg-zinc-900 border border-zinc-850 text-xs rounded-lg p-2.5 text-zinc-100 focus:outline-none focus:border-red-500/40 cursor-pointer"
+                            >
+                              <option value="TRC20">TRON (TRC20) - Rápido y Económico</option>
+                              <option value="ERC20">Ethereum (ERC20)</option>
+                              <option value="BEP20">BNB Chain (BEP20)</option>
+                            </select>
+                          )}
+                        </div>
+
+                        {/* Dirección Externa de Destino */}
+                        <div className="space-y-1.5 md:col-span-2">
+                          <label className="block text-[10px] uppercase tracking-wider font-bold text-zinc-400">
+                            Dirección de Billetera Destinataria
+                          </label>
+                          <input
+                            type="text"
+                            value={withdrawAddress}
+                            onChange={(e) => setWithdrawAddress(e.target.value)}
+                            placeholder={withdrawAsset === 'BTC' ? "Ej: bc1q..." : "Ej: TX3..."}
+                            required
+                            className="w-full bg-zinc-900 border border-zinc-850 text-xs font-mono rounded-lg p-2.5 text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-red-500/40"
+                          />
+                          <span className="text-[10px] text-zinc-550 block leading-relaxed">
+                            ⚠️ Asegúrese de que la dirección sea compatible con la red seleccionada ({withdrawNetwork}). El envío de fondos a una dirección incorrecta resultará en la pérdida total y permanente del capital.
+                          </span>
+                        </div>
+
+                        {/* Monto de Retiro */}
+                        <div className="space-y-1.5 md:col-span-2">
+                          <label className="block text-[10px] uppercase tracking-wider font-bold text-zinc-400">
+                            Monto a Retirar
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="any"
+                              value={withdrawAmount}
+                              onChange={(e) => setWithdrawAmount(e.target.value)}
+                              placeholder="0.00"
+                              required
+                              className="w-full bg-zinc-900 border border-zinc-850 text-xs rounded-lg p-2.5 pr-16 text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-red-500/40"
+                            />
+                            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-[10px] font-bold text-zinc-500 font-mono">
+                              {withdrawAsset}
+                            </div>
+                          </div>
+                          <div className="flex justify-between text-[10px] text-zinc-500">
+                            <span>Disponible: <strong className="text-zinc-300">
+                              {withdrawAsset === 'USDT' 
+                                ? `$${currentUser.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT`
+                                : `${currentUser.btcBalance.toFixed(8)} BTC`
+                              }
+                            </strong></span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const maxVal = withdrawAsset === 'USDT' ? currentUser.balance : currentUser.btcBalance;
+                                setWithdrawAmount(maxVal.toString());
+                              }}
+                              className="text-red-500 hover:text-red-400 font-bold cursor-pointer"
+                            >
+                              Retirar Todo (Máx)
+                            </button>
+                          </div>
+                        </div>
+
+                      </div>
+
+                      <div className="p-3.5 bg-zinc-900/40 border border-zinc-850 rounded-lg text-[11px] text-zinc-400 leading-relaxed space-y-1">
+                        <p>ℹ️ <strong className="text-zinc-300">Flujo de Aprobación Formal de Retiro:</strong></p>
+                        <ol className="list-decimal pl-4 space-y-1 text-zinc-500">
+                          <li>Los fondos solicitados se deducen temporalmente de tu balance.</li>
+                          <li>El departamento de seguridad audita la cuenta para verificar que no haya anomalías o actividades fraudulentas.</li>
+                          <li>Una vez aprobado, el administrador envía la transacción y provee el TxID de la blockchain.</li>
+                          <li>En caso de rechazo, los fondos son reintegrados íntegramente de manera instantánea.</li>
+                        </ol>
+                      </div>
+
+                      <div className="flex justify-end pt-2">
+                        <button
+                          type="submit"
+                          className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs py-2.5 px-6 rounded-lg cursor-pointer transition-colors shadow-md shadow-red-950/20"
+                        >
+                          Enviar Solicitud de Retiro
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Withdrawal Request History */}
+                  <div className="bg-zinc-950/50 border border-zinc-900 rounded-xl p-6">
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-4 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-red-500" />
+                      Tus Solicitudes de Retiro Externo
+                    </h4>
+
+                    {db.movements.filter(m => m.userId === currentUser.id && m.type === 'withdrawal' && m.targetAddress).length === 0 ? (
+                      <div className="text-center py-8 text-xs text-zinc-500 border border-dashed border-zinc-900 rounded-lg">
+                        No tienes solicitudes de retiro externo registradas.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="text-zinc-500 border-b border-zinc-900/80 text-[10px] uppercase tracking-wider">
+                              <th className="pb-2.5 font-bold">Fecha / ID</th>
+                              <th className="pb-2.5 font-bold">Detalle / Dirección</th>
+                              <th className="pb-2.5 font-bold text-center">Estado</th>
+                              <th className="pb-2.5 font-bold text-right">Monto</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-900/60">
+                            {db.movements
+                              .filter(m => m.userId === currentUser.id && m.type === 'withdrawal' && m.targetAddress)
+                              .map((mov) => {
+                                return (
+                                  <tr key={mov.id} className="hover:bg-zinc-900/30 transition-colors">
+                                    <td className="py-3.5">
+                                      <div className="font-bold text-zinc-300">
+                                        {new Date(mov.timestamp).toLocaleDateString()} {new Date(mov.timestamp).toLocaleTimeString()}
+                                      </div>
+                                      <div className="text-[9px] text-zinc-600 font-mono">{mov.id}</div>
+                                    </td>
+                                    <td className="py-3.5">
+                                      <div className="text-zinc-400 text-xs break-all">
+                                        {mov.description}
+                                      </div>
+                                      <div className="text-[10px] text-zinc-500 font-mono mt-1 break-all select-all">
+                                        Wallet: {mov.targetAddress}
+                                      </div>
+                                      {mov.txId && (
+                                        <div className="text-[10px] text-zinc-400 font-mono mt-1 flex items-center gap-1.5">
+                                          <span className="text-green-500">TxID:</span>
+                                          <span className="bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-850 select-all font-mono text-[9px]">{mov.txId}</span>
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="py-3.5 text-center whitespace-nowrap">
+                                      {mov.status === 'pending' && (
+                                        <span className="px-2 py-1 text-[9px] font-black uppercase tracking-widest bg-yellow-950/40 text-yellow-500 border border-yellow-500/20 rounded animate-pulse">
+                                          PENDIENTE
+                                        </span>
+                                      )}
+                                      {mov.status === 'completed' && (
+                                        <span className="px-2 py-1 text-[9px] font-black uppercase tracking-widest bg-green-950/40 text-green-400 border border-green-500/20 rounded">
+                                          APROBADO
+                                        </span>
+                                      )}
+                                      {mov.status === 'failed' && (
+                                        <span className="px-2 py-1 text-[9px] font-black uppercase tracking-widest bg-red-950/40 text-red-400 border border-red-500/20 rounded">
+                                          RECHAZADO
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="py-3.5 font-mono font-extrabold text-right text-red-400 whitespace-nowrap">
+                                      -${Math.abs(mov.amount).toLocaleString(undefined, { 
+                                        minimumFractionDigits: mov.asset === 'BTC' ? 6 : 2, 
+                                        maximumFractionDigits: mov.asset === 'BTC' ? 8 : 2 
+                                      })} {mov.asset}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Side Info Card */}
+                <div className="space-y-6">
+                  <div className="bg-zinc-950/40 border border-zinc-900 rounded-xl p-5 space-y-4">
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-300">Normas de Retiro</h4>
+                    
+                    <div className="p-4 bg-zinc-900/50 border border-zinc-850 rounded-lg space-y-1">
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">USDT Disponible</span>
+                      <div className="text-xl font-extrabold text-zinc-100 font-mono">${currentUser.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs text-red-500 font-sans">USDT</span></div>
+                    </div>
+
+                    <div className="p-4 bg-zinc-900/50 border border-zinc-850 rounded-lg space-y-1">
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">BTC Disponible</span>
+                      <div className="text-xl font-extrabold text-zinc-100 font-mono">{currentUser.btcBalance.toFixed(8)} <span className="text-xs text-red-500 font-sans">BTC</span></div>
+                    </div>
+
+                    <div className="pt-2 text-[11px] text-zinc-500 space-y-3 leading-relaxed">
+                      <h5 className="font-extrabold text-zinc-400 text-xs uppercase tracking-wider">Políticas Clave</h5>
+                      <div>
+                        <p className="font-bold text-zinc-400">¿Cuánto tarda en procesarse?</p>
+                        <p>Las solicitudes son auditadas por analistas de cumplimiento para garantizar la integridad de los fondos. El proceso toma generalmente entre 1 y 24 horas.</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-zinc-400">¿Qué redes de USDT soportan?</p>
+                        <p>Recomendamos encarecidamente utilizar TRC20 por sus bajísimas comisiones y alta velocidad de confirmación.</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-zinc-400">¿Qué pasa si mi solicitud es rechazada?</p>
+                        <p>En caso de rechazo (por ejemplo, por ingresar un formato de dirección erróneo o un problema de cumplimiento), los fondos vuelven de inmediato a tu balance general de forma segura.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
           {/* TAB 4: Corporate Announcements */}
           {activeTab === 'announcements' && (
             <div className="space-y-4 max-w-3xl">
@@ -1397,7 +1747,7 @@ export default function UserDashboard({
 
       {/* Tiny absolute footer for aesthetic margin rules */}
       <footer className="w-full text-center py-6 text-[10px] text-zinc-600 border-t border-zinc-950 mt-12 bg-zinc-950/30">
-        &copy; 2026 AURA Mining Corp. Conexión de red asegurada con simulador JWT/CSRF.
+        &copy; 2026 AURA Mining Corp. Conexión de red asegurada con tecnología JWT/CSRF.
       </footer>
     </div>
   );

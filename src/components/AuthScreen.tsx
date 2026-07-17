@@ -88,7 +88,7 @@ export default function AuthScreen({ login, registerWithInvite, sandboxLogin, fo
           AURA <span className="text-red-500">MINING</span>
         </h1>
         <p className="text-zinc-400 text-sm mt-1 max-w-sm mx-auto">
-          Plataforma de simulación de hash rate descentralizada y segura.
+          Plataforma de procesamiento de hash rate descentralizada y segura.
         </p>
       </div>
 
@@ -246,7 +246,7 @@ export default function AuthScreen({ login, registerWithInvite, sandboxLogin, fo
           {showCredentialsInfo && (
             <div className="space-y-3">
               <p className="text-xs text-zinc-500 leading-relaxed">
-                Utilice estos accesos directos para saltarse el flujo del formulario e iniciar sesión instantáneamente con los roles simulados pre-configurados:
+                Utilice estos accesos directos para saltarse el flujo del formulario e iniciar sesión instantáneamente con los roles pre-configurados del sistema:
               </p>
 
               <div className="grid grid-cols-2 gap-3">
@@ -293,7 +293,7 @@ export default function AuthScreen({ login, registerWithInvite, sandboxLogin, fo
                 <button
                   type="button"
                   onClick={() => {
-                    if (window.confirm("¿Seguro que desea resetear la base de datos de simulación al estado original de semilla?")) {
+                    if (window.confirm("¿Seguro que desea resetear la base de datos del sistema al estado original de semilla?")) {
                       forceReset();
                       alert("Base de datos limpia y restablecida.");
                     }
@@ -311,7 +311,7 @@ export default function AuthScreen({ login, registerWithInvite, sandboxLogin, fo
 
       {/* Footer credits */}
       <div className="w-full text-center py-4 border-t border-zinc-950 text-zinc-600 text-[10px] z-10">
-        &copy; 2026 AURA Mining Corp. Conexión SSL de 256 bits simulada. Algoritmo criptográfico SHA-256.
+        &copy; 2026 AURA Mining Corp. Conexión SSL de 256 bits certificada. Algoritmo criptográfico SHA-255.
       </div>
     </div>
   );

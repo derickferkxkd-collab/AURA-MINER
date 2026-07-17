@@ -16,6 +16,7 @@ export interface User {
   balance: number; // in USDT
   btcBalance: number; // in BTC
   initialBalance: number;
+  referredBy?: string; // ID of the user who referred them
   createdAt: string;
 }
 
@@ -161,9 +162,9 @@ const SEED_USERS: User[] = [
     passwordHash: "user123",
     role: "user",
     status: "active",
-    balance: 1250.00,
-    btcBalance: 0.0154,
-    initialBalance: 1000.00,
+    balance: 0,
+    btcBalance: 0,
+    initialBalance: 0,
     createdAt: new Date(Date.now() - 3600000 * 24 * 10).toISOString()
   },
   {
@@ -173,9 +174,9 @@ const SEED_USERS: User[] = [
     passwordHash: "user123",
     role: "user",
     status: "pending_approval",
-    balance: 500.00,
+    balance: 0,
     btcBalance: 0,
-    initialBalance: 500.00,
+    initialBalance: 0,
     createdAt: new Date(Date.now() - 3600000 * 5).toISOString()
   },
   {
@@ -185,9 +186,9 @@ const SEED_USERS: User[] = [
     passwordHash: "user123",
     role: "user",
     status: "blocked",
-    balance: 15.30,
-    btcBalance: 0.0002,
-    initialBalance: 100.00,
+    balance: 0,
+    btcBalance: 0,
+    initialBalance: 0,
     createdAt: new Date(Date.now() - 3600000 * 24 * 15).toISOString()
   }
 ];
@@ -263,33 +264,13 @@ const SEED_RIGS: MiningRig[] = [
 
 const SEED_MOVEMENTS: Movement[] = [
   {
-    id: "mov-1",
-    userId: "user-1",
-    userName: "Carlos Mendoza",
-    type: "signup_bonus",
-    amount: 1000.00,
-    asset: "USDT",
-    description: "Bono de registro por enlace de invitación",
-    timestamp: new Date(Date.now() - 3600000 * 24 * 10).toISOString()
-  },
-  {
-    id: "mov-2",
-    userId: "user-1",
-    userName: "Carlos Mendoza",
-    type: "admin_adjustment",
-    amount: 250.00,
-    asset: "USDT",
-    description: "Saldo inicial de demostración asignado por el Admin",
-    timestamp: new Date(Date.now() - 3600000 * 24 * 9).toISOString()
-  },
-  {
     id: "mov-3",
     userId: "user-1",
     userName: "Carlos Mendoza",
     type: "mining",
-    amount: 0.0054,
+    amount: 0,
     asset: "BTC",
-    description: "Simulación de ganancias acumuladas de minería",
+    description: "Rendimiento y ganancias acumuladas de minería oficial",
     timestamp: new Date(Date.now() - 3600000 * 24 * 2).toISOString()
   }
 ];
@@ -351,7 +332,7 @@ const SEED_NOTIFICATIONS: Notification[] = [
     id: "not-1",
     userId: "all",
     title: "🔒 Seguridad de Cuenta Reforzada",
-    message: "Hemos habilitado la protección CSRF y rate-limiting en nuestros endpoints simulados.",
+    message: "Hemos habilitado la protección CSRF y rate-limiting en nuestros endpoints de red para máxima seguridad.",
     readBy: ["user-1"],
     createdAt: new Date(Date.now() - 3600000 * 12).toISOString()
   },
