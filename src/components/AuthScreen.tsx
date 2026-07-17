@@ -231,33 +231,7 @@ export default function AuthScreen({ login, registerWithInvite, sandboxLogin, fo
 
       
 
-              {/* Seed Codes Info */}
-              <div className="p-2.5 bg-zinc-900/40 border border-zinc-900 rounded-lg text-[11px] text-zinc-500 space-y-1">
-                <div className="text-zinc-400 font-semibold mb-0.5">🔑 Códigos de Invitación de Semilla Disponibles:</div>
-                <div>• <code className="text-red-400 font-mono font-bold">AURA-WELCOME-2026</code> (Ilimitado - activo)</div>
-                <div>• <code className="text-red-400 font-mono font-bold">VIP-ONE-TIME-ONLY</code> (1 solo uso - expira pronto)</div>
-                <div>• <code className="text-red-400 font-mono font-bold">EXPIRED-CODE</code> (Expirado ayer)</div>
-              </div>
-
-              <div className="flex justify-end pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm("¿Seguro que desea resetear la base de datos del sistema al estado original de semilla?")) {
-                      forceReset();
-                      alert("Base de datos limpia y restablecida.");
-                    }
-                  }}
-                  className="text-[10px] text-zinc-500 hover:text-red-400 flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  Restaurar base de datos de semilla
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+              
 
       {/* Footer credits */}
       <div className="w-full text-center py-4 border-t border-zinc-950 text-zinc-600 text-[10px] z-10">
