@@ -29,6 +29,7 @@ export default function App() {
     modifyUserBalance,
     publishAnnouncement,
     updateDepositAddresses,
+    transferBalance,
     readNotification,
     sandboxLogin,
     forceReset
@@ -76,6 +77,7 @@ export default function App() {
           toggleRigStatus={toggleRigStatus}
           convertBtcToUsdt={convertBtcToUsdt}
           createCryptoDeposit={createCryptoDeposit}
+          transferBalance={transferBalance}
           readNotification={readNotification}
           logout={logout}
         />

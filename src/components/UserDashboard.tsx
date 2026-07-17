@@ -31,6 +31,7 @@ interface UserDashboardProps {
   toggleRigStatus: (rigId: string) => { success: boolean; error?: string };
   convertBtcToUsdt: (btcAmount: number) => { success: boolean; error?: string };
   createCryptoDeposit: (asset: 'USDT' | 'BTC' | 'ETH' | 'TRX', cryptoAmount: number, network: string) => { success: boolean; error?: string; txId?: string; address?: string };
+  transferBalance: (recipientEmail: string, amount: number) => { success: boolean; error?: string };
   readNotification: (notifId: string) => void;
   logout: () => void;
 }
@@ -50,12 +51,13 @@ export default function UserDashboard({
   toggleRigStatus,
   convertBtcToUsdt,
   createCryptoDeposit,
+  transferBalance,
   readNotification,
   logout
 }: UserDashboardProps) {
   
   // Tab/Screen states
-  const [activeTab, setActiveTab] = useState<'mining' | 'shop' | 'logs' | 'announcements' | 'deposit'>('mining');
+  const [activeTab, setActiveTab] = useState<'mining' | 'shop' | 'logs' | 'announcements' | 'deposit' | 'transfer'>('mining');
   
   // Swap tool states
   const [btcToConvert, setBtcToConvert] = useState<string>('');
@@ -115,6 +117,33 @@ export default function UserDashboard({
     navigator.clipboard.writeText(address);
     setCopiedText(true);
     setTimeout(() => setCopiedText(false), 2000);
+  };
+
+  // Internal transfer states
+  const [transferEmail, setTransferEmail] = useState<string>('');
+  const [transferAmount, setTransferAmount] = useState<string>('');
+  const [transferSuccess, setTransferSuccess] = useState<string | null>(null);
+  const [transferError, setTransferError] = useState<string | null>(null);
+
+  const handleTransferSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setTransferSuccess(null);
+    setTransferError(null);
+
+    const amount = parseFloat(transferAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setTransferError("Por favor ingrese un monto válido mayor a 0.");
+      return;
+    }
+
+    const res = transferBalance(transferEmail, amount);
+    if (res.success) {
+      setTransferSuccess(`¡Transferencia de $${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT enviada con éxito a ${transferEmail}!`);
+      setTransferEmail('');
+      setTransferAmount('');
+    } else {
+      setTransferError(res.error || "Fallo al realizar la transferencia.");
+    }
   };
 
   // Notifications display toggle
@@ -395,6 +424,17 @@ export default function UserDashboard({
           >
             <Coins className="w-4 h-4" />
             Depositar Cripto <span className="text-[9px] bg-red-500 text-white font-black px-1.5 py-0.2 rounded shrink-0 uppercase tracking-widest animate-pulse ml-1">NEW</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('transfer')}
+            className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+              activeTab === 'transfer' 
+                ? 'border-red-500 text-red-500 bg-red-950/5' 
+                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <RefreshCw className="w-4 h-4 text-red-500" />
+            Transferir Saldo <span className="text-[9px] bg-red-500 text-white font-black px-1.5 py-0.2 rounded shrink-0 uppercase tracking-widest ml-1">ENVIAR</span>
           </button>
           <button
             onClick={() => setActiveTab('announcements')}
@@ -1073,6 +1113,195 @@ export default function UserDashboard({
                     </table>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: Internal Balance Transfers */}
+          {activeTab === 'transfer' && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* Transfer Form Panel */}
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-6 shadow-xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-6 opacity-5">
+                      <RefreshCw className="w-24 h-24 text-red-500 animate-spin-slow" />
+                    </div>
+                    
+                    <h3 className="text-base font-extrabold text-zinc-200 mb-1 flex items-center gap-2">
+                      <RefreshCw className="w-5 h-5 text-red-500" />
+                      Transferencia de Saldo Interno
+                    </h3>
+                    <p className="text-xs text-zinc-500 mb-6 leading-relaxed">
+                      Envía saldo en USDT de forma instantánea y sin comisiones a cualquier otro usuario registrado en la plataforma utilizando únicamente su dirección de correo electrónico.
+                    </p>
+
+                    {transferError && (
+                      <div className="p-3.5 rounded-lg bg-red-950/20 border border-red-500/20 text-xs text-red-400 mb-5 animate-pulse">
+                        {transferError}
+                      </div>
+                    )}
+                    {transferSuccess && (
+                      <div className="p-3.5 rounded-lg bg-green-950/20 border border-green-500/20 text-xs text-green-400 mb-5 animate-fadeIn">
+                        {transferSuccess}
+                      </div>
+                    )}
+
+                    <form onSubmit={handleTransferSubmit} className="space-y-5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] uppercase tracking-wider font-bold text-zinc-400">
+                            Correo del Destinatario
+                          </label>
+                          <input
+                            type="email"
+                            value={transferEmail}
+                            onChange={(e) => setTransferEmail(e.target.value)}
+                            placeholder="Ej: usuario@correo.com"
+                            required
+                            className="w-full bg-zinc-900 border border-zinc-850 text-xs rounded-lg p-2.5 text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-red-500/40"
+                          />
+                          <span className="text-[10px] text-zinc-500">
+                            Asegúrese de ingresar el correo exacto con el que el usuario se registró.
+                          </span>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] uppercase tracking-wider font-bold text-zinc-400">
+                            Monto a Transferir (USDT)
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="any"
+                              value={transferAmount}
+                              onChange={(e) => setTransferAmount(e.target.value)}
+                              placeholder="0.00"
+                              required
+                              className="w-full bg-zinc-900 border border-zinc-850 text-xs rounded-lg p-2.5 pr-12 text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-red-500/40"
+                            />
+                            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-[10px] font-bold text-zinc-500 font-mono">
+                              USDT
+                            </div>
+                          </div>
+                          <div className="flex justify-between text-[10px] text-zinc-500">
+                            <span>Disponible: <strong className="text-zinc-300">${currentUser.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</strong></span>
+                            <button
+                              type="button"
+                              onClick={() => setTransferAmount(currentUser.balance.toString())}
+                              className="text-red-500 hover:text-red-400 font-bold cursor-pointer"
+                            >
+                              Usar Máx
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-3.5 bg-zinc-900/40 border border-zinc-850 rounded-lg text-[11px] text-zinc-400 leading-relaxed">
+                        ⚠️ <strong className="text-zinc-300">Aviso de seguridad importante:</strong> Todas las transferencias internas son definitivas e irreversibles una vez confirmadas. Compruebe el destinatario minuciosamente antes de realizar el envío.
+                      </div>
+
+                      <div className="flex justify-end pt-2">
+                        <button
+                          type="submit"
+                          className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs py-2.5 px-6 rounded-lg cursor-pointer transition-colors shadow-md shadow-red-950/20"
+                        >
+                          Confirmar y Transferir Saldo
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Transfer History */}
+                  <div className="bg-zinc-950/50 border border-zinc-900 rounded-xl p-6">
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-4 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-red-500" />
+                      Historial de Transferencias Internas
+                    </h4>
+
+                    {db.movements.filter(m => m.userId === currentUser.id && (m.type === 'transfer_sent' || m.type === 'transfer_received')).length === 0 ? (
+                      <div className="text-center py-8 text-xs text-zinc-500 border border-dashed border-zinc-900 rounded-lg">
+                        Aún no has realizado ni recibido transferencias internas.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="text-zinc-500 border-b border-zinc-900/80 text-[10px] uppercase tracking-wider">
+                              <th className="pb-2.5 font-bold">Fecha / ID</th>
+                              <th className="pb-2.5 font-bold">Tipo</th>
+                              <th className="pb-2.5 font-bold">Descripción</th>
+                              <th className="pb-2.5 font-bold text-right">Monto</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-900/60">
+                            {db.movements
+                              .filter(m => m.userId === currentUser.id && (m.type === 'transfer_sent' || m.type === 'transfer_received'))
+                              .map((mov) => {
+                                const isSent = mov.type === 'transfer_sent';
+                                return (
+                                  <tr key={mov.id} className="hover:bg-zinc-900/30 transition-colors">
+                                    <td className="py-3">
+                                      <div className="font-bold text-zinc-300">{new Date(mov.timestamp).toLocaleDateString()} {new Date(mov.timestamp).toLocaleTimeString()}</div>
+                                      <div className="text-[9px] text-zinc-600 font-mono">{mov.id}</div>
+                                    </td>
+                                    <td className="py-3">
+                                      {isSent ? (
+                                        <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest bg-red-950/40 text-red-400 border border-red-500/10 rounded">
+                                          ENVIADO
+                                        </span>
+                                      ) : (
+                                        <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest bg-green-950/40 text-green-400 border border-green-500/10 rounded">
+                                          RECIBIDO
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="py-3 text-zinc-400 text-xs">
+                                      {mov.description}
+                                    </td>
+                                    <td className={`py-3 font-mono font-extrabold text-right ${isSent ? 'text-red-400' : 'text-green-400'}`}>
+                                      {isSent ? '-' : '+'}${Math.abs(mov.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Side Info Card */}
+                <div className="space-y-6">
+                  <div className="bg-zinc-950/40 border border-zinc-900 rounded-xl p-5 space-y-4">
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-300">Resumen de Saldo</h4>
+                    
+                    <div className="p-4 bg-zinc-900/50 border border-zinc-850 rounded-lg space-y-1">
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Saldo de Cuenta</span>
+                      <div className="text-xl font-extrabold text-zinc-100 font-mono">${currentUser.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs text-red-500 font-sans">USDT</span></div>
+                    </div>
+
+                    <div className="p-4 bg-zinc-900/50 border border-zinc-850 rounded-lg space-y-1">
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Minas Activas</span>
+                      <div className="text-lg font-extrabold text-zinc-200">{activeUserRigs.length} <span className="text-xs text-zinc-500 font-normal font-mono">Sistemas</span></div>
+                    </div>
+
+                    <div className="pt-2 text-[11px] text-zinc-500 space-y-3 leading-relaxed">
+                      <h5 className="font-extrabold text-zinc-400 text-xs uppercase tracking-wider">Preguntas frecuentes</h5>
+                      <div>
+                        <p className="font-bold text-zinc-400">¿Tienen costo las transferencias?</p>
+                        <p>No, las transferencias internas entre cuentas de la plataforma son completamente gratuitas e instantáneas.</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-zinc-400">¿Qué pasa si me equivoco de correo?</p>
+                        <p>Si envías el saldo a un correo incorrecto pero que corresponde a un usuario registrado, la operación no se podrá cancelar ni revertir. Por favor, verifique dos veces.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
               </div>
             </div>
           )}

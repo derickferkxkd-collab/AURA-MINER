@@ -995,6 +995,130 @@ export function useMining() {
     return { success: true };
   };
 
+  // Transfer USDT Balance to another user within the platform
+  const transferBalance = (
+    recipientEmail: string,
+    amount: number
+  ): { success: boolean; error?: string } => {
+    if (!currentUser) return { success: false, error: "No autenticado" };
+    if (currentUser.status !== 'active') return { success: false, error: "Tu cuenta no está activa para realizar transferencias." };
+    
+    const cleanEmail = recipientEmail.trim().toLowerCase();
+    if (!cleanEmail) return { success: false, error: "Por favor ingrese el correo electrónico del destinatario." };
+    if (cleanEmail === currentUser.email.toLowerCase()) {
+      return { success: false, error: "No puedes transferirte saldo a ti mismo." };
+    }
+
+    if (isNaN(amount) || amount <= 0) {
+      return { success: false, error: "Por favor ingrese un monto válido mayor a 0." };
+    }
+
+    if (currentUser.balance < amount) {
+      return { success: false, error: "Saldo insuficiente para realizar la transferencia." };
+    }
+
+    if (!enforceSecurity(currentUser.id, 'transfer_balance')) {
+      return { success: false, error: 'Has superado el límite de intentos. Por favor espera unos momentos.' };
+    }
+
+    // Find recipient user
+    const recipient = db.users.find(u => u.email.toLowerCase() === cleanEmail);
+    if (!recipient) {
+      return { success: false, error: "No se encontró ningún usuario con ese correo electrónico registrado." };
+    }
+
+    if (recipient.status === 'blocked') {
+      return { success: false, error: "El usuario destinatario se encuentra bloqueado." };
+    }
+
+    const timestamp = new Date().toISOString();
+
+    // 1. Movement for Sender (negative amount)
+    const senderMovement: Movement = {
+      id: "mov-" + Date.now() + "-sender",
+      userId: currentUser.id,
+      userName: currentUser.name,
+      type: 'transfer_sent',
+      amount: -amount,
+      asset: 'USDT',
+      description: `Transferencia enviada a ${recipient.name} (${recipient.email})`,
+      timestamp,
+      status: 'completed'
+    };
+
+    // 2. Movement for Recipient (positive amount)
+    const recipientMovement: Movement = {
+      id: "mov-" + Date.now() + "-recipient",
+      userId: recipient.id,
+      userName: recipient.name,
+      type: 'transfer_received',
+      amount: amount,
+      asset: 'USDT',
+      description: `Transferencia recibida de ${currentUser.name} (${currentUser.email})`,
+      timestamp,
+      status: 'completed'
+    };
+
+    // 3. Sender Notification
+    const senderNotif: Notification = {
+      id: "notif-" + Math.random().toString(36).substring(2, 9),
+      userId: currentUser.id,
+      title: "Transferencia enviada correctamente",
+      message: `Has transferido con éxito $${amount.toFixed(2)} USDT a ${recipient.name} (${recipient.email}).`,
+      readBy: [],
+      createdAt: timestamp
+    };
+
+    // 4. Recipient Notification
+    const recipientNotif: Notification = {
+      id: "notif-" + Math.random().toString(36).substring(2, 9),
+      userId: recipient.id,
+      title: "Transferencia recibida",
+      message: `¡Has recibido una transferencia de $${amount.toFixed(2)} USDT de parte de ${currentUser.name}!`,
+      readBy: [],
+      createdAt: timestamp
+    };
+
+    // 5. Activity Log
+    const activityLog: ActivityLog = {
+      id: "act-" + Date.now(),
+      userId: currentUser.id,
+      userName: currentUser.name,
+      action: "TRANSFER_BALANCE",
+      details: `Transfirió $${amount.toFixed(2)} USDT a ${recipient.name} (${recipient.email})`,
+      ipAddress: "simulated_ip",
+      timestamp
+    };
+
+    updateDbState(prev => {
+      const updatedUsers = prev.users.map(u => {
+        if (u.id === currentUser.id) {
+          return {
+            ...u,
+            balance: u.balance - amount
+          };
+        }
+        if (u.id === recipient.id) {
+          return {
+            ...u,
+            balance: u.balance + amount
+          };
+        }
+        return u;
+      });
+
+      return {
+        ...prev,
+        users: updatedUsers,
+        movements: [senderMovement, recipientMovement, ...prev.movements],
+        notifications: [senderNotif, recipientNotif, ...prev.notifications],
+        activityLogs: [activityLog, ...prev.activityLogs]
+      };
+    });
+
+    return { success: true };
+  };
+
   // Mark notification as read
   const readNotification = (notifId: string) => {
     if (!currentUser) return;
@@ -1066,6 +1190,7 @@ export function useMining() {
     modifyUserBalance,
     publishAnnouncement,
     updateDepositAddresses,
+    transferBalance,
     readNotification,
     sandboxLogin,
     forceReset

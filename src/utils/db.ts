@@ -34,7 +34,7 @@ export interface Movement {
   id: string;
   userId: string;
   userName: string;
-  type: 'mining' | 'admin_adjustment' | 'signup_bonus' | 'withdrawal' | 'deposit';
+  type: 'mining' | 'admin_adjustment' | 'signup_bonus' | 'withdrawal' | 'deposit' | 'transfer_sent' | 'transfer_received';
   amount: number; // For USDT representation
   asset: 'USDT' | 'BTC' | 'ETH' | 'TRX';
   description: string;
