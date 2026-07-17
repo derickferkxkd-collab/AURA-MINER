@@ -229,59 +229,7 @@ export default function AuthScreen({ login, registerWithInvite, sandboxLogin, fo
         </div>
       </div>
 
-      {/* Developer Sandbox Panel (Highly styled) */}
-      <div className="w-full max-w-lg mx-auto z-10 pt-4 pb-6">
-        <div className="bg-zinc-950/40 border border-zinc-900 rounded-xl p-4">
-          <div className="flex items-center justify-between mb-3 border-b border-zinc-900 pb-2">
-            <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
-              <Info className="w-3.5 h-3.5 text-red-500" />
-              Módulo Sandbox Developer
-            </span>
-            <button 
-              onClick={() => setShowCredentialsInfo(!showCredentialsInfo)} 
-              className="text-zinc-500 hover:text-zinc-300 text-xs underline cursor-pointer"
-            >
-              {showCredentialsInfo ? 'Ocultar Atajos' : 'Mostrar Atajos'}
-            </button>
-          </div>
-
-          {showCredentialsInfo && (
-            <div className="space-y-3">
-              <p className="text-xs text-zinc-500 leading-relaxed">
-                Utilice estos accesos directos para saltarse el flujo del formulario e iniciar sesión instantáneamente con los roles pre-configurados del sistema:
-              </p>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => sandboxLogin('admin')}
-                  className="bg-zinc-900/80 hover:bg-zinc-800 border border-red-950 hover:border-red-500/40 text-left p-2.5 rounded-lg transition-all cursor-pointer group"
-                >
-                  <div className="text-red-400 text-xs font-bold uppercase tracking-wide group-hover:text-red-300">
-                    Rol: Administrador
-                  </div>
-                  <div className="text-[10px] text-zinc-500 mt-1">
-                    Correo: <code className="text-zinc-400">admin@auramining.com</code>
-                  </div>
-                  <div className="text-[10px] text-zinc-500">
-                    Contraseña: <code className="text-zinc-400">admin123</code>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => sandboxLogin('user')}
-                  className="bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 hover:border-red-500/30 text-left p-2.5 rounded-lg transition-all cursor-pointer group"
-                >
-                  <div className="text-zinc-300 text-xs font-bold uppercase tracking-wide group-hover:text-zinc-100">
-                    Rol: Miner Activo
-                  </div>
-                  <div className="text-[10px] text-zinc-500 mt-1">
-                    Correo: <code className="text-zinc-400">carlos@gmail.com</code>
-                  </div>
-                  <div className="text-[10px] text-zinc-500">
-                    Contraseña: <code className="text-zinc-400">user123</code>
-                  </div>
-                </button>
-              </div>
+      
 
               {/* Seed Codes Info */}
               <div className="p-2.5 bg-zinc-900/40 border border-zinc-900 rounded-lg text-[11px] text-zinc-500 space-y-1">
