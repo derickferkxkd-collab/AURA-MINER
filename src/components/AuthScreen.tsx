@@ -175,7 +175,7 @@ export default function AuthScreen({ login, registerWithInvite, sandboxLogin, fo
             {isRegister && (
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
-                  <label className="text-[11px] uppercase font-bold tracking-wider text-zinc-400 block">Código de Invitación</label>
+                  <label className="text-[11px] uppercase font-bold tracking-wider text-zinc-400 block">Invitación o Patrocinador</label>
                   <span className="text-[10px] text-red-500 font-semibold">* Requerido</span>
                 </div>
                 <div className="relative">
@@ -184,9 +184,9 @@ export default function AuthScreen({ login, registerWithInvite, sandboxLogin, fo
                     type="text"
                     value={inviteCode}
                     onChange={(e) => setInviteCode(e.target.value)}
-                    placeholder="AURA-XXXXX-XXXX"
+                    placeholder="Código o Email de quien te invitó"
                     required
-                    className="w-full bg-zinc-900/60 border border-red-500/20 focus:border-red-500 focus:outline-none rounded-lg py-2 pl-10 pr-4 text-sm text-zinc-100 placeholder-zinc-600 font-mono tracking-wider transition-all"
+                    className="w-full bg-zinc-900/60 border border-red-500/20 focus:border-red-500 focus:outline-none rounded-lg py-2 pl-10 pr-4 text-sm text-zinc-100 placeholder-zinc-650 transition-all text-ellipsis"
                   />
                 </div>
               </div>

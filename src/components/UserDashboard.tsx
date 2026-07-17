@@ -21,7 +21,8 @@ import {
   FileText, 
   Megaphone,
   Check,
-  ArrowUpRight
+  ArrowUpRight,
+  Users
 } from 'lucide-react';
 import { DatabaseState, User, MiningRig, Movement, ActivityLog } from '../utils/db';
 
@@ -675,6 +676,60 @@ export default function UserDashboard({
                       </p>
                     </div>
                   )}
+                </div>
+
+                {/* Referral Program Card */}
+                <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-5 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-amber-500" />
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Sistema de Referidos (Comisión 7%)</h3>
+                  </div>
+                  
+                  <p className="text-[11px] text-zinc-500 leading-relaxed">
+                    ¡Invita a tus socios y gana una comisión directa del <strong className="text-amber-400">7%</strong> sobre cada depósito en USDT o Bitcoin que realicen una vez sea verificado y aprobado por el Administrador!
+                  </p>
+
+                  <div className="space-y-3 bg-zinc-900/30 p-3.5 rounded-lg border border-zinc-900/60 text-xs">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold block">Tu Código de Invitación / Referido</span>
+                      <div className="flex items-center gap-2 mt-1">
+                        <input
+                          type="text"
+                          readOnly
+                          value={currentUser.email}
+                          className="bg-zinc-950 border border-zinc-850 rounded px-2.5 py-1 text-zinc-300 font-mono text-[11px] flex-1 focus:outline-none select-all"
+                        />
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(currentUser.email);
+                          }}
+                          className="px-2 py-1 bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-zinc-200 text-[10px] rounded font-bold cursor-pointer transition-colors"
+                        >
+                          Copiar
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-zinc-600 mt-1">
+                        Tus invitados deben ingresar tu correo en el campo de patrocinador al registrarse.
+                      </p>
+                    </div>
+
+                    {currentUser.referredBy && (
+                      <div className="border-t border-zinc-900/60 pt-2.5 mt-2 flex justify-between items-center text-[10px]">
+                        <span className="text-zinc-500">Tu Patrocinador:</span>
+                        <span className="font-mono text-amber-500 font-bold bg-amber-950/20 px-1.5 py-0.5 rounded border border-amber-500/5">
+                          {db.users.find(u => u.id === currentUser.referredBy)?.name || currentUser.referredBy}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Summary of Referred friends */}
+                  <div className="text-[11px] flex justify-between items-center text-zinc-400">
+                    <span>Socios Referidos:</span>
+                    <span className="font-mono font-extrabold text-zinc-200 bg-zinc-900 px-2 py-0.5 rounded">
+                      {db.users.filter(u => u.referredBy === currentUser.id).length}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Node Status network monitor */}
