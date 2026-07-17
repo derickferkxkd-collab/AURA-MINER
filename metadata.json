@@ -1,0 +1,6 @@
+{
+  "name": "Cloud Mining Simulator",
+  "description": "Plataforma premium de simulación de minería en la nube con panel de administración, control de invitaciones, estadísticas de rendimiento y gestión financiera.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
