@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Lock, Mail, User, Cpu, KeyRound, AlertTriangle, Sparkles, ArrowRight, RefreshCw, Info } from 'lucide-react';
 import { UserStatus } from '../utils/db';
+import AuraLogo from './AuraLogo';
 
 interface AuthScreenProps {
   login: (email: string, passwordHash: string) => { success: boolean; error?: string };
@@ -79,15 +80,16 @@ export default function AuthScreen({ login, registerWithInvite, sandboxLogin, fo
       <div className="absolute inset-0 border border-red-500/5 pointer-events-none m-2 rounded-2xl" />
 
       {/* Header Branding */}
-      <div className="w-full max-w-md mx-auto pt-8 pb-4 text-center z-10">
+      <div className="w-full max-w-md mx-auto pt-4 pb-2 text-center z-10 flex flex-col items-center justify-center">
         <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-red-950/30 border border-red-500/20 backdrop-blur-md mb-4 shadow-[0_0_15px_rgba(239,68,68,0.1)]">
           <Cpu className="w-4 h-4 text-red-500 animate-pulse" />
           <span className="text-xs uppercase font-semibold tracking-widest text-red-400">Enterprise Cloud Mining v2.0</span>
         </div>
-        <h1 className="text-4xl font-extrabold tracking-tight bg-gradient-to-b from-white via-zinc-100 to-zinc-500 bg-clip-text text-transparent">
-          AURA <span className="text-red-500">MINING</span>
-        </h1>
-        <p className="text-zinc-400 text-sm mt-1 max-w-sm mx-auto">
+        
+        {/* Styled Logo Component */}
+        <AuraLogo size={160} showText={true} className="mb-2" />
+        
+        <p className="text-zinc-400 text-xs mt-2 max-w-sm mx-auto">
           Plataforma de procesamiento de hash rate descentralizada y segura.
         </p>
       </div>

@@ -27,6 +27,7 @@ import {
   Users
 } from 'lucide-react';
 import { DatabaseState, User as DBUser, MiningRig, Movement, ActivityLog } from '../utils/db';
+import AuraLogo from './AuraLogo';
 
 interface UserDashboardProps {
   currentUser: DBUser;
@@ -285,11 +286,9 @@ export default function UserDashboard({
       <header className="bg-zinc-950/75 border-b border-zinc-900 sticky top-0 z-40 backdrop-blur-md px-4 sm:px-6">
         <div className="max-w-7xl mx-auto flex justify-between items-center h-16">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-red-600/10 border border-red-500/30 flex items-center justify-center">
-              <Cpu className="w-4.5 h-4.5 text-red-500" />
-            </div>
+            <AuraLogo size={42} showText={false} />
             <div>
-              <span className="font-extrabold tracking-wider text-base">AURA</span>
+              <span className="font-extrabold tracking-wider text-base bg-gradient-to-r from-red-400 to-red-600 bg-clip-text text-transparent">AURA</span>
               <span className="text-red-500 text-xs font-semibold ml-1.5 uppercase tracking-widest px-1.5 py-0.5 rounded bg-red-950/40 border border-red-500/15">MINER</span>
             </div>
           </div>
