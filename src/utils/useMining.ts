@@ -197,10 +197,7 @@ export function useMining() {
   };
 
   // 4. AUTH ACTIONS
-  const login = async (email: string, passwordHash: string): Promise<{ success: boolean; error?: string }> => {
-    if (!enforceSecurity(email, 'login')) return { success: false, error: 'Rate limit' };
-
- let user = db.users.find(
+  let user = db.users.find(
   u => u.email.toLowerCase() === email.toLowerCase()
 );
 
@@ -210,15 +207,14 @@ const { data: supabaseUser } = await supabase
   .eq("email", email)
   .single();
 
-
-
-
 if (supabaseUser) {
   user = {
     ...supabaseUser,
     passwordHash: supabaseUser.password_hash
   };
 }
+
+if (!user || user.passwordHash !== passwordHash) {
       updateDbState(prev => ({
         ...prev,
         activityLogs: [newLog, ...prev.activityLogs]
