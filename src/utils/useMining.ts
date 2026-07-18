@@ -208,6 +208,8 @@ export function useMining() {
 }
     const user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
 
+const { data: supabaseUser } = await supabase
+
   .from("users")
   .select("*")
   .eq("email", email)
