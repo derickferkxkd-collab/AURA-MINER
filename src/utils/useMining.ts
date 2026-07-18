@@ -206,7 +206,8 @@ export function useMining() {
     passwordHash: supabaseUser.password_hash
   };
 }
-    const { data: supabaseUser } = await supabase
+    const user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+
   .from("users")
   .select("*")
   .eq("email", email)
