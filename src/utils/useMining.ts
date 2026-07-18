@@ -221,17 +221,22 @@ if (supabaseUser) {
   .select("*")
   .eq("email", email)
   .single();
-if (!user || user.passwordHash !== passwordHash) {
-      // Security log for failed login attempt
-      const newLog: ActivityLog = {
-        id: "act-" + Date.now(),
-        userId: "anonymous",
-        userName: email,
-        action: "FAILED_LOGIN",
-        details: `Intento fallido de inicio de sesión para el correo: ${email}`,
-        ipAddress: getClientIP(),
-        timestamp: new Date().toISOString()
-      };
+let user = db.users.find(
+  u => u.email.toLowerCase() === email.toLowerCase()
+);
+
+const { data: supabaseUser } = await supabase
+  .from("users")
+  .select("*")
+  .eq("email", email)
+  .single();
+
+if (supabaseUser) {
+  user = {
+    ...supabaseUser,
+    passwordHash: supabaseUser.password_hash
+  };
+}
       updateDbState(prev => ({
         ...prev,
         activityLogs: [newLog, ...prev.activityLogs]
