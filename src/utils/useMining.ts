@@ -201,7 +201,12 @@ export function useMining() {
     if (!enforceSecurity(email, 'login')) return { success: false, error: 'Rate limit' };
 
     const user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (!user || user.passwordHash !== passwordHash) {
+    const { data: supabaseUser } = await supabase
+  .from("users")
+  .select("*")
+  .eq("email", email)
+  .single();
+if (!user || user.passwordHash !== passwordHash) {
       // Security log for failed login attempt
       const newLog: ActivityLog = {
         id: "act-" + Date.now(),
