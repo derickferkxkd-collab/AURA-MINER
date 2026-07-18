@@ -210,12 +210,7 @@ const { data: supabaseUser } = await supabase
   .eq("email", email)
   .single();
 
-if (supabaseUser) {
-  user = {
-    ...supabaseUser,
-    passwordHash: supabaseUser.password_hash
-  };
-}
+
 
   .from("users")
   .select("*")
