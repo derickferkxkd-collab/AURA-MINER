@@ -197,7 +197,7 @@ export function useMining() {
   };
 
   // 4. AUTH ACTIONS
-  const login = (email: string, passwordHash: string): { success: boolean; error?: string } => {
+  const login = async (email: string, passwordHash: string): Promise<{ success: boolean; error?: string }> => {
     if (!enforceSecurity(email, 'login')) return { success: false, error: 'Rate limit' };
 
     const user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
