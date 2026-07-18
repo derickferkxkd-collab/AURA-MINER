@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { 
+import { supabase } from '../lib/supabase';
   loadDatabase, 
   saveDatabase, 
   User, 
