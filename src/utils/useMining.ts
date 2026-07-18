@@ -209,8 +209,12 @@ const { data: supabaseUser } = await supabase
 
 if (supabaseUser) {
   user = {
-    ...supabaseUser,
-    passwordHash: supabaseUser.password_hash
+    id: supabaseUser.id,
+    name: supabaseUser.name,
+    email: supabaseUser.email,
+    passwordHash: supabaseUser.password_hash,
+    status: supabaseUser.status,
+    balance: supabaseUser.balance
   };
 }
 
