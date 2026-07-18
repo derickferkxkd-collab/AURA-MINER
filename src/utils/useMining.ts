@@ -201,7 +201,8 @@ export function useMining() {
   u => u.email.toLowerCase() === email.toLowerCase()
 );
 
-const { data: supabaseUser } = await supabase
+const { data: supabaseUser, error: supabaseError } = await supabase
+console.log("SUPABASE LOGIN:", supabaseUser, supabaseError);
   .from("users")
   .select("*")
   .eq("email", email)
