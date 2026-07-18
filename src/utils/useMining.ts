@@ -315,7 +315,14 @@ export function useMining() {
       referredBy: referredByUserId,
       createdAt: new Date().toISOString()
     };
-
+await supabase.from("users").insert({
+  id: newUser.id,
+  name: newUser.name,
+  email: newUser.email,
+  password_hash: newUser.passwordHash,
+  status: newUser.status,
+  balance: newUser.balance
+});
     const newActivity: ActivityLog = {
       id: "act-" + Date.now(),
       userId: newUserId,
