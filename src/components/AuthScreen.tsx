@@ -61,7 +61,7 @@ export default function AuthScreen({ login, registerWithInvite, sandboxLogin, fo
           setLoading(false);
           return;
         }
-        const result = login(email, password);
+        const result = await login(email, password);
         if (!result.success) {
           setError(result.error || "Error de inicio de sesión.");
         }
