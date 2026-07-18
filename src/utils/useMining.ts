@@ -29,7 +29,7 @@ import {
 } from './security';
 
 export function useMining() {
-  const [db, setDb] = useState<DatabaseState>(loadDatabase);
+  const [db, setDb] = useState<DatabaseState>(() => loadDatabase());
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(() => sessionStorage.getItem('aura_auth_token'));
   const [csrfToken, setCsrfTokenState] = useState<string>(getCsrfToken);
