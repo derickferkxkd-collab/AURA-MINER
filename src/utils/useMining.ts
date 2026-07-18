@@ -1544,7 +1544,7 @@ await supabase.from("users").insert({
   // Sandbox Quick login feature (crucial for developers reviewing this applet)
   const sandboxLogin = (role: 'admin' | 'user') => {
     const targetEmail = role === 'admin' ? "admin@auramining.com" : "carlos@gmail.com";
-    const user = db.users.find(u => u.email === targetEmail);
+    
     if (user) {
       const token = generateToken(user);
       sessionStorage.setItem('aura_auth_token', token);
